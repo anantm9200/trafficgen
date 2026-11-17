@@ -1,6 +1,7 @@
 name: Real Playwright browser smoke
 on:
   workflow_dispatch:
+  pull_request:
   push:
     paths:
       - 'worker/**'
@@ -9,6 +10,9 @@ on:
       - 'styles.css'
       - 'tests/dashboard-browser.test.mjs'
       - 'tests/browser.test.mjs'
+      - 'tests/dashboard-browser.test.mjs'
+      - 'app.js'
+      - 'index.html'
       - '.github/workflows/browser-smoke.yml'
 permissions:
   contents: read
@@ -25,4 +29,4 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - run: node --test tests/browser.test.mjs tests/dashboard-browser.test.mjs
+      - run: node --test tests/browser.test.mjs tests/dashboard-browser.test.mjs tests/dashboard-browser.test.mjs
