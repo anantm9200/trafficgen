@@ -19,4 +19,10 @@ test('Static frontend links to real browser scripts',()=>{
   assert.ok(js.includes(route),'missing '+route);
 });
 
-test('Delivered browser JavaScript parses without syntax errors',()=>{assert.doesNotThrow(()=>new Script(js,{filename:'app.js'}));assert.ok(js.includes('/api/auth-check'));});
+test('Delivered browser JavaScript parses without syntax errors',()=>{assert.doesNotThrow(()=>new Script(js,{filename:'app.js'}));assert.ok(js.includes('/api/auth-check'));
+ assert.ok(js.includes('/api/site-verify'));
+ assert.ok(html.includes('id="site-domain"'));
+ assert.ok(html.includes('id="plan-site-select"'));
+ assert.ok(!html.includes('id="plan-token"'));
+ assert.ok(!html.includes('id="plan-authorized"'));
+});
