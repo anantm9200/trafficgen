@@ -48,7 +48,12 @@ function pinnedProof(target,ip){
   req.on('error',reject);req.end();
  });
 }
-export async function verifyOwnership(rawUrl,token,{fetchImpl=null,dnsCheck=assertPublicDns}={}){
+export async function verifyOwnership(rawUrl,token,{fetchImpl=null,dnsCheck=assertPublicDns,method='dns_txt'}={}){
+ if(method==='dns_txt'&&!fetchImpl){
+  const {verifyDnsOwnership}=await import('./dns-proof.mjs');
+  return verifyDnsOwnership(rawUrl,token,{dnsCheck});
+ }
+ if(method!=='http_file'&&!fetchImpl)throw error('Unknown ownership verification method',400);
  const target=parseTarget(rawUrl);
  if(!/^tg_[A-Za-z0-9_-]{16,100}$/.test(token??''))throw error('Invalid verification token');
  const ips=await dnsCheck(target.hostname);
