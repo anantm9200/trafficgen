@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {chromium} from 'playwright';
-const html=readFileSync(new URL('../index.html',import.meta.url),'utf8').replace(/<link[^>]*>/g,'').replace(/<script[^>]*><\\/script>/g,'');
+const html=readFileSync(new URL('../index.html',import.meta.url),'utf8').replace(/<link[^>]*>/g,'').replaceAll('<script defer type="module" src="/app.js"></script>','');
 const js=readFileSync(new URL('../app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../styles.css',import.meta.url),'utf8');
 test('Dashboard actually initializes, edits campaigns and checks service in Chromium',async()=>{
