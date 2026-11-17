@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node bin/server.mjs",
     "dev": "node bin/server.mjs",
-    "test": "node --test tests/plan.test.mjs tests/intelligence.test.mjs tests/inspection.test.mjs tests/dns-ga4.test.mjs tests/site-enrollment.test.mjs tests/dashboard-static.test.mjs tests/ga4-resilience.test.mjs",
+    "test": "node --test tests/plan.test.mjs tests/intelligence.test.mjs tests/inspection.test.mjs tests/dns-ga4.test.mjs tests/site-enrollment.test.mjs tests/dashboard-static.test.mjs tests/ga4-resilience.test.mjs tests/analytics-observe.test.mjs",
     "worker": "node worker/run.mjs",
     "cli": "node bin/trafficgen.mjs",
     "test:browser": "node --test tests/browser.test.mjs"
