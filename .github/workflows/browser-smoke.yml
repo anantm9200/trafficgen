@@ -1,0 +1,24 @@
+name: Real Playwright browser smoke
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'worker/**'
+      - 'tests/browser.test.mjs'
+      - '.github/workflows/browser-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: node --test tests/browser.test.mjs
