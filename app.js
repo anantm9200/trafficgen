@@ -27,11 +27,11 @@ const API_LABEL={'overview':'Overview','builder':'New test','campaigns':'Campaig
 function nav(route){if(!API_LABEL[route])return;state.route=route;$$('.view').forEach(el=>el.classList.toggle('active',el.id==='view-'+route));$$('[data-route].nav-link').forEach(el=>el.classList.toggle('active',el.dataset.route===route));$('#breadcrumb-current').textContent=API_LABEL[route];$('#sidebar').classList.remove('open');$('#mobile-backdrop').classList.remove('open');if(location.hash!=='#'+route)history.replaceState(null,'','#'+route);window.scrollTo({top:0,behavior:'instant'});if(route==='runs')void refreshRuns();if(route==='analytics'){renderReports();renderInspections();}}
 function freshToken(){const bytes=new Uint8Array(24);crypto.getRandomValues(bytes);return 'tg_'+Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');}
 function newId(){return crypto.randomUUID?.()||'test-'+Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');}
-async function http(path,{method='GET',body=null,auth=false}={}){
+async function http(path,{method='GET',body=null,auth=false,timeoutMs=12000}={}){
  const headers={'Accept':'application/json'};
  if(body!==null)headers['Content-Type']='application/json';
  if(auth){if(!state.apiKey)throw new Error('Connect your API access key in Integrations first.');headers.Authorization='Bearer '+state.apiKey;}
- const r=await fetch(path,{method,headers,body:body===null?undefined:JSON.stringify(body),cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(12000)});
+ const r=await fetch(path,{method,headers,body:body===null?undefined:JSON.stringify(body),cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(timeoutMs)});
  let data;try{data=await r.json();}catch{throw new Error('The server returned an unexpected response (HTTP '+r.status+').');}
  if(!r.ok)throw new Error(data.error||'Request failed ('+r.status+')');return data;
 }
@@ -94,6 +94,18 @@ function selectVerifiedSite(host,{resetUrl=true}={}){
  renderSelectedSiteStatus();renderBrief();
  return true;
 }
+function syncExistingSiteProof(){
+ let hostname;
+ try{hostname=normalizeSiteDomain($('#site-domain').value).hostname;}catch{updateSiteProof();return;}
+ const old=state.store.sites.find(site=>site.hostname===hostname);
+ if(old){
+  state.siteToken=old.verificationToken;
+  $('#site-authorized').checked=old.authorized===true;
+  $('#site-verify-result').textContent='Existing TXT setup restored for '+hostname+'. You can verify it without connecting an API key.';
+  $('#site-verify-result').className='inline-result';
+ }
+ updateSiteProof();
+}
 function updateSiteProof(){
  let host='your-domain.com';
  try{host=normalizeSiteDomain($('#site-domain').value).hostname}catch{}
@@ -131,7 +143,7 @@ async function verifySiteSetup(){
  $('#site-verify-result').textContent='Checking TXT record at _visitorlab.'+site.hostname+' and inspecting the site…';
  $('#site-verify-result').className='inline-result';
  try{
-  const response=await http('/api/site-verify',{method:'POST',auth:true,
+  const response=await http('/api/site-verify',{method:'POST',timeoutMs:22000,
    body:{targetUrl:site.origin+'/',verificationToken:site.verificationToken,authorized:true}});
   if(response?.verification?.verified!==true)throw new Error('Domain could not be verified.');
   site.status='verified';site.verifiedAt=response.verification.checkedAt;site.ga4=response.ga4||null;
@@ -142,14 +154,23 @@ async function verifySiteSetup(){
    ?'GA4 Measurement ID detected: '+ga.measurementIds.join(', ')+'. Pre-filled in new test campaigns; test event sending remains disabled unless you opt in.'
    :ga.tagManagerIds?.length
    ?'Tag Manager detected: '+ga.tagManagerIds.join(', ')+'. GA4 Measurement ID is not visible in the initial HTML.'
+   :ga.status==='inspection_unavailable'
+   ?'GA4 detection was temporarily unavailable. DNS ownership is verified; you can retry tag detection later.'
    :'GA4 Measurement ID was not detected in static HTML; runtime-loaded tags may not be visible.';
   $('#site-verify-result').textContent='✓ DNS verified for '+site.hostname+'. '+message+
    ' This does not prove Google Analytics is receiving data.';
   $('#site-verify-result').className='inline-result ok';
  }catch(e){
   site.status='pending';site.verifiedAt=null;site.ga4=null;save();
-  $('#site-verify-result').textContent='Verification pending: '+e.message+
-    '. Save the DNS setup and retry after publishing the TXT record. Connect the API key under Integrations if needed.';
+  let hint='The TXT name and value must match. If recently added, allow DNS to propagate.';
+  try{
+   const result=await http('/api/dns-status?hostname='+encodeURIComponent(site.hostname));
+   if(result?.dns?.recordPresent)hint='The public DNS resolver sees a VisitorLab TXT record, but it may not match the saved token. Reopen your saved domain and compare the TXT value.';
+   else if(result?.dns?.status==='not_published')hint='The public DNS resolver cannot yet see _visitorlab.'+site.hostname+'. Verify the DNS zone and record name.';
+   else if(result?.dns?.status==='no_visitorlab_record')hint='Public DNS responds, but it does not contain a VisitorLab verification TXT record at the expected name.';
+  }catch{}
+  $('#site-verify-result').textContent='Verification unsuccessful: '+e.message+'. '+hint+
+   ' No API key is needed for DNS verification.';
   $('#site-verify-result').className='inline-result bad';
  }finally{button.disabled=false;button.textContent='Verify TXT & detect GA4 ↗';}
 }
@@ -262,6 +283,7 @@ function wireEvents(){document.addEventListener('click',e=>{
  $('#step-back').onclick=()=>{state.step=Math.max(0,state.step-1);renderWizard();};$('#step-next').onclick=()=>{if(state.step===3){try{readPlan();}catch(e){notify(e.message);return;}}state.step=Math.min(4,state.step+1);renderWizard();};
  $('#site-create-new').onclick=()=>resetSiteSetup();
  $('#site-domain').addEventListener('input',updateSiteProof);
+ $('#site-domain').addEventListener('change',syncExistingSiteProof);
  $('#site-save').onclick=()=>{try{const site=saveSiteSetup();$('#site-verify-result').textContent='TXT setup saved for '+site.hostname+'. Add the record in your DNS provider, then click Verify TXT & detect GA4.';$('#site-verify-result').className='inline-result ok';}catch(e){$('#site-verify-result').textContent=e.message;$('#site-verify-result').className='inline-result bad';}};
  $('#site-verify').onclick=()=>void verifySiteSetup();
  for(const [button,field] of [['site-copy-name','site-dns-name'],['site-copy-value','site-dns-value']]){

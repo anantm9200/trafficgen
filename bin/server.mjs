@@ -4,6 +4,7 @@ import {fileURLToPath} from 'node:url';
 const routes=new Map([
  ['GET /api/health','../api/health.js'],
  ['GET /api/spec','../api/spec.js'],
+ ['GET /api/dns-status','../api/dns-status.js'],
  ['POST /api/validate','../api/validate.js'],
  ['POST /api/site-verify','../api/site-verify.js'],
  ['POST /api/dispatch','../api/dispatch.js'],
@@ -28,6 +29,7 @@ const server=createServer(async(req,res)=>{
   try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{res.writeHead(400);res.end('Invalid JSON');return;}
  }
  req.body=body;
+ req.query=Object.fromEntries(new URL(req.url,'http://127.0.0.1').searchParams);
  const adapter={
   setHeader:(k,v)=>res.setHeader(k,v),
   status(code){res.statusCode=code;return this;},

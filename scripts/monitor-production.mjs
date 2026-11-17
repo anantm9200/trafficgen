@@ -36,7 +36,7 @@ for(const host of hosts){
   try{h=JSON.parse(health.text);}catch{}
   try{api=JSON.parse(spec.text);}catch{}
   check('health API',health.status===200&&h?.ok===true&&h?.security?.authConfigured===true,String(health.status));
-  check('profile/specification API',spec.status===200&&api?.ok===true&&Array.isArray(api?.browsers)&&api?.inspection?.endpoint==='POST /api/inspect'&&api?.siteVerify?.endpoint==='POST /api/site-verify',String(spec.status));
+  check('profile/specification API',spec.status===200&&api?.ok===true&&Array.isArray(api?.browsers)&&api?.inspection?.endpoint==='POST /api/inspect'&&api?.siteVerify?.endpoint==='POST /api/site-verify'&&api?.siteVerify?.requiresAuthentication===false&&api?.dnsStatus?.requiresAuthentication===false,String(spec.status));
   check('protected endpoint denies anonymous use',protectedEndpoint.status===401,String(protectedEndpoint.status));
   record.latencyMs=Math.round((html.durationMs+css.durationMs+js.durationMs+health.durationMs+spec.durationMs)/5);
  }catch(e){check('network',false,String(e.message));}
