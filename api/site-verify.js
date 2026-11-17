@@ -28,9 +28,9 @@ export async function verifySiteAndDetect(input,{
  if(!input||typeof input!=='object'||Array.isArray(input))throw error('Invalid verification request');
  if(input.authorized!==true)throw error('Confirm website ownership or written testing authorization first.',403);
  const record=dnsProofRecord(input.targetUrl,input.verificationToken);
- throttle(record.host);
  // Nothing is fetched from the target unless the DNS TXT proof matches.
  const verification=await verifyDns(input.targetUrl,input.verificationToken);
+ throttle(record.host);
  let ga4;
  try{
   const target=parseTarget(input.targetUrl),ips=await dnsCheck(target.hostname);
