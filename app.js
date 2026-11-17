@@ -115,6 +115,7 @@ function wireEvents(){document.addEventListener('click',e=>{
  const edit=e.target.closest('[data-edit]');if(edit){loadCampaign(edit.dataset.edit);return;}
  const exportCampaign=e.target.closest('[data-export-campaign]');if(exportCampaign){const c=state.store.campaigns.find(c=>c.id===exportCampaign.dataset.exportCampaign);if(c){const {id,createdAt,updatedAt,...plan}=c;download('trafficgen-plan-'+id.slice(0,8)+'.json',plan);}return;}
  const del=e.target.closest('[data-delete-campaign]');if(del){if(confirm('Delete this saved campaign from this browser?')){state.store.campaigns=state.store.campaigns.filter(c=>c.id!==del.dataset.deleteCampaign);save();notify('Campaign removed.');}return;}
+ const inspectionExport=e.target.closest('[data-export-inspection]');if(inspectionExport){const inspection=(state.store.inspections||[]).find(a=>a.runId===inspectionExport.dataset.exportInspection);if(inspection)download('trafficgen-inspection-'+inspection.runId+'.json',inspection);return;}
  const reportExport=e.target.closest('[data-export-report]');if(reportExport){const report=state.store.reports.find(r=>r.plan?.runId===reportExport.dataset.exportReport);if(report)download('trafficgen-report-'+report.plan.runId+'.json',report);}
  });
  $('#menu-open').onclick=()=>{$('#sidebar').classList.add('open');$('#mobile-backdrop').classList.add('open');};$('#mobile-backdrop').onclick=()=>{$('#sidebar').classList.remove('open');$('#mobile-backdrop').classList.remove('open');};
