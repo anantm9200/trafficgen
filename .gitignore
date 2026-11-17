@@ -1,0 +1,7 @@
+node_modules/
+.vercel/
+.env*
+!*.example
+reports/
+*.log
+.DS_Store
