@@ -1,5 +1,9 @@
 name: Verified synthetic browser test
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'plans/active.json'
   workflow_dispatch:
     inputs:
       plan_b64:
@@ -36,7 +40,12 @@ jobs:
       - name: Validate source
         run: npm test
       - name: Execute authorized browser journeys
-        run: node worker/run.mjs --env-plan
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            node worker/run.mjs plans/active.json
+          else
+            node worker/run.mjs --env-plan
+          fi
       - name: Save execution reports
         if: always()
         uses: actions/upload-artifact@v4
