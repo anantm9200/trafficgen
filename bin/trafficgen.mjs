@@ -8,7 +8,7 @@ async function main(){
   if(!arg)throw Error('Supply a file path');
   const token='tg_'+randomBytes(24).toString('base64url');
   const plan={name:'Authorized browser QA',targetUrl:'https://www.your-domain.com/',authorized:false,
-   verificationToken:token,countries:['AE','IN','US'],devices:['desktop','iphone','android'],
+   verificationToken:token,verificationMethod:'dns_txt',countries:['AE','IN','US'],devices:['desktop','iphone','android'],
    browser:'chromium',sessions:6,concurrency:1,intervalSeconds:8,dwellSeconds:15,maxPages:2,
    interactions:{scroll:true,hover:true,navigate:true,checkImages:true},
    analytics:{enabled:false,measurementId:'',utm:{
@@ -18,7 +18,7 @@ async function main(){
   };
   await writeFile(arg,JSON.stringify(plan,null,2)+'\n',{flag:'wx'});
   console.log('Plan written:',arg);
-  console.log('Publish your verification token as plain text at https://YOUR_DOMAIN/.well-known/visitorlab-verify.txt');
+  console.log('Add DNS TXT record _visitorlab.YOUR_DOMAIN with value visitorlab-verification='+token);
   console.log('Edit targetUrl and set authorized:true only for websites you own or are permitted to test.');
   return;
  }
