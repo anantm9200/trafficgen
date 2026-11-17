@@ -131,7 +131,8 @@ function saveSiteSetup(){
  const sameToken=old?.verificationToken===state.siteToken;
  const site={hostname,origin,verificationToken:state.siteToken,authorized:true,verificationMethod:'dns_txt',
   status:sameToken?old.status:'pending',verifiedAt:sameToken?old.verifiedAt:null,
-  ga4:sameToken?old.ga4:null,createdAt:old?.createdAt||new Date().toISOString()};
+  ga4:sameToken?old.ga4:null,ga4LastCheckedAt:sameToken?old.ga4LastCheckedAt:null,
+  ga4LastError:sameToken?old.ga4LastError:null,createdAt:old?.createdAt||new Date().toISOString()};
  state.store.sites=state.store.sites.filter(s=>s.hostname!==hostname);
  state.store.sites.push(site);save();
  return site;
@@ -146,7 +147,16 @@ async function verifySiteSetup(){
   const response=await http('/api/site-verify',{method:'POST',timeoutMs:22000,
    body:{targetUrl:site.origin+'/',verificationToken:site.verificationToken,authorized:true}});
   if(response?.verification?.verified!==true)throw new Error('Domain could not be verified.');
-  site.status='verified';site.verifiedAt=response.verification.checkedAt;site.ga4=response.ga4||null;
+  site.status='verified';site.verifiedAt=response.verification.checkedAt;
+  site.ga4LastCheckedAt=new Date().toISOString();
+  const incoming=response.ga4||{status:'inspection_unavailable',measurementIds:[],tagManagerIds:[]};
+  const previous=site.ga4||{};
+  // Never discard a previously discovered GA4 ID just because a new
+  // HTML scan was blocked, consent-gated, or temporarily inconclusive.
+  const hasPreviousIds=(previous.measurementIds?.length||previous.tagManagerIds?.length)>0;
+  const hasNewIds=(incoming.measurementIds?.length||incoming.tagManagerIds?.length)>0;
+  site.ga4=hasPreviousIds&&!hasNewIds?{...previous,latestScanStatus:incoming.status,previouslyDetected:true}:incoming;
+  site.ga4LastError=incoming.status==='inspection_unavailable'?incoming.note:null;
   save();
   selectVerifiedSite(site.hostname);
   const ga=site.ga4||{};
@@ -161,7 +171,12 @@ async function verifySiteSetup(){
    ' This does not prove Google Analytics is receiving data.';
   $('#site-verify-result').className='inline-result ok';
  }catch(e){
-  site.status='pending';site.verifiedAt=null;site.ga4=null;save();
+  // A transient DNS/GA4 recheck failure must not revoke a previously
+  // verified site's access or erase its last successful tag discovery.
+  const previouslyVerified=site.status==='verified';
+  if(!previouslyVerified){site.status='pending';site.verifiedAt=null;}
+  site.ga4LastError=String(e.message||'Verification request failed');
+  save();
   let hint='The TXT name and value must match. If recently added, allow DNS to propagate.';
   try{
    const result=await http('/api/dns-status?hostname='+encodeURIComponent(site.hostname));
@@ -169,7 +184,7 @@ async function verifySiteSetup(){
    else if(result?.dns?.status==='not_published')hint='The public DNS resolver cannot yet see _visitorlab.'+site.hostname+'. Verify the DNS zone and record name.';
    else if(result?.dns?.status==='no_visitorlab_record')hint='Public DNS responds, but it does not contain a VisitorLab verification TXT record at the expected name.';
   }catch{}
-  $('#site-verify-result').textContent='Verification unsuccessful: '+e.message+'. '+hint+
+  $('#site-verify-result').textContent=(previouslyVerified?'Recheck failed; existing DNS verification is retained: ':'Verification unsuccessful: ')+e.message+'. '+hint+
    ' No API key is needed for DNS verification.';
   $('#site-verify-result').className='inline-result bad';
  }finally{button.disabled=false;button.textContent='Verify TXT & detect GA4 ↗';}
@@ -178,9 +193,11 @@ function renderWebsites(){
  const list=state.store.sites||[];
  $('#website-list').innerHTML=list.length?'<div class="record-list">'+list.map(site=>{
   const verified=site.status==='verified',ga=site.ga4||{};
-  const gaText=ga.measurementIds?.length?'GA4 tag: '+ga.measurementIds.join(', '):
-   ga.tagManagerIds?.length?'GTM: '+ga.tagManagerIds.join(', ')+' (GA4 ID not visible)':
-   verified?'GA4 ID not detected in HTML':'GA4 not yet scanned';
+  const gaText=ga.measurementIds?.length?'GA4 ID found: '+ga.measurementIds.join(', ')+(ga.previouslyDetected?' · preserved from earlier scan':''):
+   ga.tagManagerIds?.length?'GTM: '+ga.tagManagerIds.join(', ')+' (GA4 ID may load inside GTM)':
+   ga.status==='inspection_unavailable'?'GA4 scan unavailable · DNS verification unaffected':
+   ga.status==='not_found_in_html'?'GA4 not found in initial HTML · runtime tag may still exist':
+   verified?'GA4 not yet scanned':'GA4 not yet scanned';
   return '<div class="record-row site-record"><span class="record-icon">◎</span>'+
    '<div class="record-desc"><b>'+encode(site.hostname)+'</b><small>DNS TXT · '+(verified?'Verified '+encode(time(site.verifiedAt)):'Awaiting TXT verification')+'</small>'+
    '<div class="site-tag-status">'+encode(gaText)+'</div></div>'+
