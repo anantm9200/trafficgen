@@ -370,3 +370,28 @@ footer{font-size:11px;padding:23px 3%;color:#8290a0}
 @media(prefers-reduced-motion:reduce){
  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
+
+/* DNS TXT ownership setup */
+.site-onboarding{margin-top:10px;overflow:hidden}
+.site-onboarding-body{padding:24px 26px 28px}
+.site-onboarding-body label{display:block;font-size:12px;color:#56677c;font-weight:750;letter-spacing:.065em;margin-bottom:10px}
+.site-onboarding-body input:not([type=checkbox]){width:100%;height:50px;border:1px solid #dce3eb;border-radius:8px;padding:0 15px;font-size:14px;color:var(--ink);background:#fff}
+.site-onboarding-body input[readonly]{background:#f7f9fc;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px}
+.site-onboarding-body .field-help{font-size:12px;color:var(--sub);line-height:1.65;margin:7px 0 0}
+.site-dns-proof{margin-top:23px;background:#f7f9fc;border:1px solid var(--border);border-radius:10px;padding:21px}
+.site-dns-heading{margin-bottom:19px}
+.site-dns-row{display:grid;grid-template-columns:minmax(0,1fr) 137px;align-items:end;gap:12px;margin-top:14px}
+.site-dns-row>div{min-width:0}
+.site-dns-row button{height:50px}
+.site-dns-advice{font-size:12px;line-height:1.75;color:#6b7d91;margin:17px 0 2px}
+.site-onboarding-body .check-row{margin:22px 0 16px!important;font-size:14px!important}
+.site-actions{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.site-actions .button{min-width:185px}
+.site-record{display:flex;align-items:center;gap:15px;flex-wrap:wrap}
+.site-record .record-desc{min-width:155px}
+.site-tag-status{color:#617385;font-size:12px;margin-top:7px;line-height:1.5}
+.site-record-actions{display:flex;gap:6px;flex-wrap:wrap}
+.site-record-actions button{white-space:nowrap}
+#site-selection-status{margin:10px 0 0;line-height:1.55}
+#site-selection-status.verified{color:#258861}
+@media(max-width:600px){.site-onboarding-body{padding:18px 17px 21px}.site-dns-proof{padding:15px}.site-dns-row{grid-template-columns:1fr}.site-dns-row button{width:100%;height:43px}.site-actions .button{min-width:0;flex:1}.site-record-actions{width:100%}.site-record-actions .link-button{flex:1}}
