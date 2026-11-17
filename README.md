@@ -114,7 +114,7 @@ node bin/trafficgen.mjs template plan.json
 
 Edit `plan.json` with your website and `authorized: true` only after confirming ownership/written permission.
 
-Publish a UTF-8 plain-text file at `https://YOUR_DOMAIN/.well-known/visitorlab-verify.txt` consisting of your plan's **exact** `verificationToken` on a single line. It must return HTTP 200 without redirects. This authorization check is repeated before the workflow dispatch **and** on the worker immediately before execution.
+Add a **DNS TXT record** for the exact target hostname. For `https://www.your-domain.com/`, set the name to `_visitorlab.www.your-domain.com` (or the relative hostname expected by your provider), and the TXT value to `visitorlab-verification=<your verificationToken>`. Suggested TTL is 300 seconds. Set `verificationMethod: "dns_txt"` in the plan. The platform rechecks the TXT record before each authorized test and browser run; no website file is required.
 
 ```sh
 node bin/trafficgen.mjs validate plan.json
@@ -141,6 +141,7 @@ Result saved to `reports/report-<runId>.json`; optional DGX intelligence is embe
   "targetUrl": "https://www.your-domain.com/",
   "authorized": false,
   "verificationToken": "tg_generate_random_token_from_cli",
+  "verificationMethod": "dns_txt",
   "sessions": 6,
   "concurrency": 1,
   "intervalSeconds": 8,
@@ -199,11 +200,13 @@ CI checks configuration validation, public target safeguards and GA4 synthetic e
 
 The dashboard now supports a **real HTTP site inspection** without requiring the GitHub workflow-dispatch token:
 
-1. Open New Test, choose a public HTTPS target, and generate the verification token.
-2. Publish the exact token as plain text at `https://TARGET/.well-known/visitorlab-verify.txt` (HTTP 200, no redirects).
-3. Connect your TrafficGen `TG_API_KEY` in Integrations; it is held for that tab session only.
-4. Open the campaign Review step and select **Run live site inspection**.
+1. Open **Websites**, enter your public HTTPS hostname, and copy the automatically generated DNS TXT record name and value.
+2. Publish the record at your DNS provider. Select **Save DNS setup** to keep the pending registration, then **Verify TXT & detect GA4** once DNS has propagated.
+3. Connect your TrafficGen `TG_API_KEY` in Integrations if needed; it is held only for the browser tab session.
+4. Select the verified domain in **New test** and choose **Run live site inspection** at the Review step.
 5. Review the measured response status, elapsed duration, HTML title, description, H1 headings, image alt indicators, canonical, robots directive and security headers. See **Analytics → Verified site inspections** for saved observations and JSON exports.
+
+Backend: `POST /api/site-verify` verifies the DNS TXT record and performs passive GA4/Tag Manager inspection of the first HTML response (no JavaScript execution). It reports detected `G-` IDs separately from `GTM-` containers and does not establish whether analytics events are actually received. Verified domains are saved locally and reused in campaigns without reentering a token. Ownership is still rechecked by the server on every protected action.
 
 Backend: `POST /api/inspect`, authenticated with `Authorization: Bearer TG_API_KEY`, accepts the same bounded plan used by `/api/validate`. It checks the public domain and ownership proof, pins the site's HTTPS request to a publicly resolved IP, refuses redirects, refuses unsafe URLs and limits page data to 512 KiB. It performs **one synthetic-tagged HTTP GET**; it does not pretend to be a human browser or count as a browser test session.
 
@@ -214,3 +217,7 @@ All Vercel functions remain subject to configured credentials. **Full Playwright
 ### Hourly and end-to-end checks
 
 `TrafficGen Hourly Health` checks both production aliases, required dashboard controls, JavaScript/CSS assets, JS parseability, JSON API schema, and anonymous rejection by the protected API. Separately, GitHub Actions Chromium tests exercise real UI interactions against an isolated controlled fixture on pull requests and relevant pushes. Neither check fabricates Google Search Console data.
+
+## Legacy website verification
+
+Older plans that explicitly set `verificationMethod: "http_file"` can still use the previous `/.well-known/visitorlab-verify.txt` proof, but the user interface uses DNS TXT onboarding only. Older saved campaigns will be shown as pending until the TXT record is configured; no unverified site is silently trusted. TXT ownership proof is public; production access still requires the private `TG_API_KEY` and authorization.
