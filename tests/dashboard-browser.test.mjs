@@ -56,7 +56,7 @@ test('Dashboard supports draft, inspection, real API errors and workspace restor
   await page.locator('#connect-api').click();
   await page.waitForFunction(()=>document.querySelector('#api-connection-result')?.textContent.includes('API authorized'));
   await page.locator('.nav-link[data-route="builder"]').click();
-  for(let i=0;i<4;i++)await page.locator('#step-next').click();
+  assert.equal(await page.locator('#review-audit').isVisible(),true,'Returning to the builder preserves current review step');
   await page.locator('#review-audit').click();
   await page.waitForFunction(()=>document.querySelector('#review-message')?.textContent.includes('Verified inspection completed'));
   await page.locator('.nav-link[data-route="analytics"]').click();
