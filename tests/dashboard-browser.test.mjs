@@ -30,14 +30,14 @@ test('DNS website enrollment auto-detects GA4 and reuses verified sites across c
      devices:{desktop:{name:'Desktop',class:'desktop'},iphone:{name:'iPhone',class:'mobile'}},
      siteVerify:{endpoint:'POST /api/site-verify'}};
     else if(p==='/api/auth-check')data={ok:true,integrations:{githubWorkflow:false}};
-    else if(!opt.headers?.Authorization){status=401;data={error:'Unauthorized'};}
-    else if(p==='/api/site-verify')data={ok:true,verification:{
+    else if(p==='/api/site-verify'){window.__siteVerifyNoAuth=!opt.headers?.Authorization;data={ok:true,verification:{
       verified:true,method:'dns_txt',hostname:'example.org',checkedAt:new Date().toISOString()
     },ga4:{
       status:'measurement_id_detected',measurementIds:['G-AUTO123456'],tagManagerIds:[],
       method:'static_html',trackingActiveConfirmed:false,
       note:'Measurement ID found in HTML; delivery unverified'
-    }};
+    }};}
+    else if(!opt.headers?.Authorization){status=401;data={error:'Unauthorized'};}
     else if(p==='/api/validate')data={ok:true,verification:{verified:true,hostname:'example.org',checkedAt:new Date().toISOString()}};
     else if(p==='/api/inspect')data={ok:true,audit:{
       kind:'site_inspection',runId:'run-inspect-test',mode:'single_verified_http_get',target:'https://example.org/',
@@ -53,13 +53,7 @@ test('DNS website enrollment auto-detects GA4 and reuses verified sites across c
   await page.addScriptTag({content:js});
   await page.waitForFunction(()=>document.querySelector('#health-label')?.textContent==='API online');
 
-  // Authorize the API workspace once.
-  await page.locator('.nav-link[data-route="settings"]').click();
-  await page.locator('#settings-token').fill('123456789012345678901234567890');
-  await page.locator('#connect-api').click();
-  await page.waitForFunction(()=>document.querySelector('#api-connection-result')?.textContent.includes('API authorized'));
-
-  // Register target using DNS TXT and automatically detect GA4.
+  // Register target using DNS TXT and automatically detect GA4 WITHOUT an API key.
   await page.locator('.nav-link[data-route="websites"]').click();
   await page.locator('#site-domain').fill('example.org');
   await page.locator('#site-authorized').check();
@@ -71,6 +65,20 @@ test('DNS website enrollment auto-detects GA4 and reuses verified sites across c
   await page.waitForFunction(()=>document.querySelector('#site-verify-result')?.textContent.includes('DNS verified'));
   assert.match(await page.locator('#website-list').innerText(),/G-AUTO123456/);
   assert.match(await page.locator('#site-verify-result').innerText(),/does not prove Google Analytics is receiving data/);
+  assert.equal(await page.evaluate(()=>window.__siteVerifyNoAuth),true,'TXT verification must not depend on an API bearer key');
+
+  // Existing TXT tokens must be recovered rather than accidentally regenerated.
+  const existing=await page.locator('#site-dns-value').inputValue();
+  await page.locator('#site-create-new').click();
+  await page.locator('#site-domain').fill('example.org');
+  await page.locator('#site-authorized').click();
+  assert.equal(await page.locator('#site-dns-value').inputValue(),existing);
+
+  // Protected full inspections and execution still require a workspace API key.
+  await page.locator('.nav-link[data-route="settings"]').click();
+  await page.locator('#settings-token').fill('123456789012345678901234567890');
+  await page.locator('#connect-api').click();
+  await page.waitForFunction(()=>document.querySelector('#api-connection-result')?.textContent.includes('API authorized'));
 
   // Campaign builder no longer asks for another token or authorization checkbox.
   await page.locator('#website-list [data-site-use]').click();
