@@ -15,7 +15,7 @@ test('Static frontend links to real browser scripts',()=>{
  assert.match(html, /src="\/app.js"/);
  assert.ok(css.length>15000);
  assert.ok(js.length>15000);
- for(const route of ['/api/health','/api/spec','/api/validate','/api/dispatch','/api/runs'])
+ for(const route of ['/api/health','/api/spec','/api/validate','/api/dgx-jobs','/api/dgx-job'])
   assert.ok(js.includes(route),'missing '+route);
 });
 
@@ -25,4 +25,10 @@ test('Delivered browser JavaScript parses without syntax errors',()=>{assert.doe
  assert.ok(html.includes('id="plan-site-select"'));
  assert.ok(!html.includes('id="plan-token"'));
  assert.ok(!html.includes('id="plan-authorized"'));
+});
+
+test('DGX run controls are wired to authenticated job endpoints',()=>{
+ assert.ok(js.includes("method:'POST',body:{...plan,concurrency:1}"),'dispatch must use DGX queue');
+ assert.ok(js.includes('data-cancel-dgx'),'cancel control missing');
+ assert.ok(js.includes('data-report-dgx'),'report download missing');
 });
