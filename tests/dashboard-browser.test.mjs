@@ -44,7 +44,7 @@ test('Dashboard supports draft, inspection, real API errors and workspace restor
   await page.locator('button[data-route="builder"].primary').first().click();
   await page.locator('#wizard-save').click();
   await page.locator('.nav-link[data-route="campaigns"]').click();
-  assert.equal(await page.locator('#campaign-list [data-edit]').count(),1,'Draft must save without URL/authorization');
+  assert.equal(await page.locator('#campaign-list [data-edit]').count(),1,'Draft must save without URL/authorization. Toast: '+await page.locator('#toast').textContent()+' Errors: '+errors.join('; ')+' Workspace: '+await page.evaluate(()=>window.localStorage.getItem('trafficgen_workspace_v1')));
   await page.locator('#campaign-list [data-edit]').click();
   await page.locator('#plan-url').fill('https://example.org/');
   await page.locator('#plan-authorized').check();
