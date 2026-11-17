@@ -37,7 +37,7 @@ async function http(path,{method='GET',body=null,auth=false}={}){
 }
 async function checkHealth(){const label=$('#health-label'),chip=$('#health-chip');try{state.health=await http('/api/health');chip.className='health-chip ok';label.textContent='API online';}catch(e){state.health=null;chip.className='health-chip fail';label.textContent='API unreachable';}renderIntegrations();}
 async function fetchSpec(){try{state.spec=await http('/api/spec');}catch{state.spec={countries:FALLBACK_COUNTRIES,devices:FALLBACK_DEVICES,utmKeys:Object.keys(UTM_LABELS)};notify('Using offline profile catalog; API connection unavailable.');}renderCountryOptions();renderDeviceOptions();renderDeviceMatrix();}
-function renderCounts(){const list=state.store.campaigns,hosts=new Set(list.map(c=>{try{return new URL(c.targetUrl).hostname}catch{return ''}}).filter(Boolean));$('#metric-campaigns').textContent=list.length;$('#metric-websites').textContent=hosts.size;$('#side-campaigns').textContent=list.length;}
+function renderCounts(){const list=state.store.campaigns;$('#metric-campaigns').textContent=list.length;$('#metric-websites').textContent=state.store.sites.filter(s=>s.status==='verified').length;$('#side-campaigns').textContent=list.length;}
 function renderRuns(){const raw=state.runs;
  $('#metric-runs').textContent=raw?raw.length:'—';
  const completed=raw?.filter(r=>['success','failure','cancelled'].includes(r.conclusion))||[];
@@ -316,7 +316,7 @@ function wireEvents(){document.addEventListener('click',e=>{
       inspections.some(x=>!x||x.kind!=='site_inspection'||typeof x.runId!=='string')||
       sites.some(x=>!x||typeof x.hostname!=='string'||typeof x.verificationToken!=='string'))
      throw new Error('Backup contains invalid records');
-   if(!confirm('Restore '+campaigns.length+' campaigns, '+reports.length+' browser reports and '+inspections.length+' site inspections? Existing local data will be replaced.'))return;
+   if(!confirm('Restore '+campaigns.length+' campaigns, '+reports.length+' browser reports and '+inspections.length+' site inspections? Existing local data, including registered websites, will be replaced.'))return;
    state.store={campaigns,reports,inspections,sites};state.campaignId=null;save();
    notify('Workspace successfully restored from JSON.');
   }catch(err){notify('Restore failed: '+err.message);}
@@ -326,6 +326,6 @@ function wireEvents(){document.addEventListener('click',e=>{
  $('#import-report').onclick=()=>$('#report-file').click();$('#report-file').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>3_000_000)throw Error('Report exceeds 3 MB');const data=JSON.parse(await file.text());if(typeof data!=='object'||!data||!Array.isArray(data.sessions)||typeof data.summary!=='object'||!data.plan?.runId)throw Error('Not a recognized TrafficGen worker report.');state.store.reports=state.store.reports.filter(r=>r.plan.runId!==data.plan.runId);state.store.reports.push(data);save();notify('Actual worker report imported.');}catch(err){notify('Report import failed: '+err.message);}finally{e.target.value='';}});
  $('#export-reports').onclick=()=>download('trafficgen-worker-reports.json',state.store.reports);
 }
-async function init(){renderUtm();updateSiteProof();renderSiteOptions();renderWizard();renderBrief();renderCounts();renderCampaigns();renderWebsites();renderSiteOptions();renderRuns();renderReports();renderInspections();renderIntegrations();wireEvents();nav(location.hash.slice(1)||'overview');await Promise.all([checkHealth(),fetchSpec()]);if(state.apiKey){try{await http('/api/auth-check',{auth:true});state.authenticated=true;}catch{state.authenticated=false;state.apiKey='';sessionStorage.removeItem(TOKEN_KEY);}renderIntegrations();}}
+async function init(){renderUtm();updateSiteProof();renderSiteOptions();renderWizard();renderBrief();renderCounts();renderCampaigns();renderWebsites();renderRuns();renderReports();renderInspections();renderIntegrations();wireEvents();nav(location.hash.slice(1)||'overview');await Promise.all([checkHealth(),fetchSpec()]);if(state.apiKey){try{await http('/api/auth-check',{auth:true});state.authenticated=true;}catch{state.authenticated=false;state.apiKey='';sessionStorage.removeItem(TOKEN_KEY);}renderIntegrations();}}
 window.addEventListener('hashchange',()=>nav(location.hash.slice(1)||'overview'));
 init().catch(e=>{console.error(e);notify('Dashboard initialization failed: '+e.message);});
