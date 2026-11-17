@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Authorized synthetic website experience testing console",
+  "description": "Authenticated API and Playwright worker for authorized synthetic website testing with optional DGX analytics",
   "scripts": {
-    "dev": "node dev-server.mjs",
+    "start": "node bin/server.mjs",
+    "dev": "node bin/server.mjs",
     "test": "node --test tests/*.test.mjs",
-    "worker": "node worker/run.mjs"
+    "worker": "node worker/run.mjs",
+    "cli": "node bin/trafficgen.mjs"
   },
-  "devDependencies": {
+  "dependencies": {
     "playwright": "^1.56.0"
   },
   "engines": {
