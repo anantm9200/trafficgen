@@ -8,13 +8,20 @@ const DEVICE_ICON={desktop:'▣',iphone:'▯',android:'▯',ipad:'▤',tablet:'�
 const UTM_LABELS={utm_source:'Traffic source',utm_medium:'Medium',utm_campaign:'Campaign name',utm_id:'Campaign ID',utm_term:'Campaign term',utm_content:'Creative / content',utm_source_platform:'Source platform',utm_creative_format:'Creative format',utm_marketing_tactic:'Marketing tactic'};
 const FALLBACK_COUNTRIES={US:{name:'United States'},IN:{name:'India'},AE:{name:'United Arab Emirates'},DE:{name:'Germany'},GB:{name:'United Kingdom'},FR:{name:'France'},SG:{name:'Singapore'},AU:{name:'Australia'},CA:{name:'Canada'},ZA:{name:'South Africa'},NA:{name:'Namibia'},TZ:{name:'Tanzania'}};
 const FALLBACK_DEVICES={desktop:{name:'Desktop',class:'desktop'},iphone:{name:'iPhone',class:'mobile'},android:{name:'Android',class:'mobile'},ipad:{name:'iPad',class:'tablet'},tablet:{name:'Android tablet',class:'tablet'}};
-const emptyStorage=()=>({campaigns:[],reports:[],inspections:[]});
-function storageLoad(){try{const x=JSON.parse(localStorage.getItem(STORE));return Array.isArray(x?.campaigns)&&Array.isArray(x?.reports)?{...emptyStorage(),...x,inspections:Array.isArray(x.inspections)?x.inspections:[]}:emptyStorage();}catch{return emptyStorage();}}
-const state={route:'overview',step:0,campaignId:null,spec:null,health:null,runs:null,store:storageLoad(),apiKey:sessionStorage.getItem(TOKEN_KEY)||'',countryCodes:['AE','IN','US'],devices:['desktop','iphone'],busy:false,authenticated:false};
+const emptyStorage=()=>({campaigns:[],reports:[],inspections:[],sites:[]});
+function storageLoad(){try{const x=JSON.parse(localStorage.getItem(STORE));if(!Array.isArray(x?.campaigns)||!Array.isArray(x?.reports))return emptyStorage();
+ const sites=Array.isArray(x.sites)?x.sites.filter(y=>y&&typeof y.hostname==='string'&&typeof y.verificationToken==='string'):[];
+ for(const c of x.campaigns){
+  try{const u=new URL(c.targetUrl);if(!sites.some(y=>y.hostname===u.hostname)&&c.verificationToken)sites.push({
+   hostname:u.hostname,origin:u.origin,verificationToken:c.verificationToken,authorized:false,status:'pending',ga4:null,verificationMethod:'dns_txt',verifiedAt:null,migrated:true
+  });}catch{}
+ }
+ return {...emptyStorage(),...x,inspections:Array.isArray(x.inspections)?x.inspections:[],sites};}catch{return emptyStorage();}}
+const state={route:'overview',step:0,campaignId:null,spec:null,health:null,runs:null,store:storageLoad(),apiKey:sessionStorage.getItem(TOKEN_KEY)||'',countryCodes:['AE','IN','US'],devices:['desktop','iphone'],busy:false,authenticated:false,siteToken:freshToken()};
 const encode=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const time=d=>{if(!d)return '—';const x=new Date(d);return Number.isNaN(x.getTime())?'—':x.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})};
 function notify(msg){const el=$('#toast');el.textContent=msg;el.classList.add('visible');clearTimeout(notify.timer);notify.timer=setTimeout(()=>el.classList.remove('visible'),3800);}
-function save(){localStorage.setItem(STORE,JSON.stringify(state.store));renderCounts();renderCampaigns();renderWebsites();renderReports();renderInspections();}
+function save(){localStorage.setItem(STORE,JSON.stringify(state.store));renderCounts();renderCampaigns();renderWebsites();renderSiteOptions();renderReports();renderInspections();}
 function displayStatus(value){const s=String(value||'').toLowerCase();if(['success','completed'].includes(s))return ['success','Passed'];if(['failure','error','cancelled','timed_out'].includes(s))return ['failure','Failed'];if(['queued','pending','in_progress','waiting','requested'].includes(s))return ['pending','Running'];return ['neutral',value||'Unknown'];}
 const API_LABEL={'overview':'Overview','builder':'New test','campaigns':'Campaigns','runs':'Run monitor','analytics':'Analytics','websites':'Websites','devices':'Device lab','settings':'Integrations'};
 function nav(route){if(!API_LABEL[route])return;state.route=route;$$('.view').forEach(el=>el.classList.toggle('active',el.id==='view-'+route));$$('[data-route].nav-link').forEach(el=>el.classList.toggle('active',el.dataset.route===route));$('#breadcrumb-current').textContent=API_LABEL[route];$('#sidebar').classList.remove('open');$('#mobile-backdrop').classList.remove('open');if(location.hash!=='#'+route)history.replaceState(null,'','#'+route);window.scrollTo({top:0,behavior:'instant'});if(route==='runs')void refreshRuns();if(route==='analytics'){renderReports();renderInspections();}}
@@ -48,7 +55,120 @@ function rowRun(r){const [cls,label]=displayStatus(r.conclusion||r.status);retur
 function emptyMarkup(msg){return '<div class="list-empty"><b>Nothing to show yet.</b><small>'+encode(msg)+'</small></div>';}
 async function refreshRuns(){if(!state.apiKey){state.runs=null;renderRuns();return;}const btn=$('#refresh-runs');btn.disabled=true;try{const res=await http('/api/runs',{auth:true});state.runs=res.runs||[];notify('Workflow statuses refreshed.');}catch(e){state.runs=null;notify('Unable to load workflows: '+e.message);}finally{btn.disabled=false;renderRuns();}}
 function renderCampaigns(){const list=state.store.campaigns;$('#campaign-list-count').textContent=list.length+' campaign'+(list.length===1?'':'s');$('#campaign-list').innerHTML=list.length?'<div class="record-list">'+[...list].reverse().map(c=>'<div class="record-row"><span class="record-icon">◫</span><div class="record-desc"><b>'+encode(c.name)+'</b><small>'+encode(c.targetUrl)+' · '+encode(c.sessions)+' sessions · '+encode(time(c.updatedAt))+'</small></div><button class="link-button" data-edit="'+encode(c.id)+'">Edit ↗</button><button class="link-button" data-export-campaign="'+encode(c.id)+'">Export ↓</button><button class="link-button delete-button" data-delete-campaign="'+encode(c.id)+'">Remove</button></div>').join('')+'</div>':emptyMarkup('Save your first campaign in the New Test builder.');}
-function renderWebsites(){const entries=[...new Map(state.store.campaigns.map(c=>{try{return[new URL(c.targetUrl).hostname,c]}catch{return['',null]}}).filter(([h])=>h)).entries()];$('#website-list').innerHTML=entries.length?'<div class="record-list">'+entries.map(([hostname,c])=>'<div class="record-row"><span class="record-icon">◎</span><div class="record-desc"><b>'+encode(hostname)+'</b><small>Referenced by saved campaigns · Verified again at run time</small></div><button class="link-button" data-edit="'+encode(c.id)+'">View plan →</button></div>').join('')+'</div>':emptyMarkup('Sites appear here when you save a campaign with a target URL.');}
+
+function normalizeSiteDomain(input){
+ const trimmed=String(input||'').trim();
+ if(!trimmed)throw new Error('Enter the website domain first.');
+ let url;try{url=new URL(trimmed.includes('://')?trimmed:'https://'+trimmed)}catch{throw new Error('Enter a valid public website hostname.');}
+ if(url.protocol!=='https:'||url.username||url.password||url.port||!url.hostname.includes('.')||
+  /^(localhost|.+\.localhost|.+\.local|.+\.internal|.+\.test|.+\.invalid|.+\.example)$/i.test(url.hostname)||
+  /^\d/.test(url.hostname)||url.hostname.includes(':'))throw new Error('Only public HTTPS domain names can be verified.');
+ return {hostname:url.hostname,origin:url.origin};
+}
+function renderSiteOptions(){
+ const sel=$('#plan-site-select');if(!sel)return;
+ const previous=sel.value;
+ const verified=state.store.sites.filter(site=>site.status==='verified');
+ sel.innerHTML='<option value="">Choose a verified website…</option>'+
+  verified.map(site=>'<option value="'+encode(site.hostname)+'">'+encode(site.hostname)+'</option>').join('');
+ if(verified.some(site=>site.hostname===previous))sel.value=previous;
+ renderSelectedSiteStatus();
+}
+function renderSelectedSiteStatus(){
+ const status=$('#site-selection-status');if(!status)return;
+ const site=state.store.sites.find(s=>s.hostname===$('#plan-site-select').value&&s.status==='verified');
+ if(!site){status.textContent='Add and verify a website in Websites before creating a live test.';status.className='field-help';return;}
+ const g=site.ga4||{};
+ const summary=g.measurementIds?.length?' · GA4 ID detected: '+g.measurementIds.join(', '):g.tagManagerIds?.length?' · Google Tag Manager detected (GA4 ID not visible)':' · GA4 not detected in initial HTML';
+ status.textContent='✓ DNS TXT verified on '+time(site.verifiedAt)+summary+'. Ownership is checked again before each test.';
+ status.className='field-help verified';
+}
+function selectVerifiedSite(host,{resetUrl=true}={}){
+ const site=state.store.sites.find(s=>s.hostname===host&&s.status==='verified');
+ if(!site){notify('Verify this domain in Websites before creating tests.');return false;}
+ renderSiteOptions();
+ $('#plan-site-select').value=site.hostname;
+ if(resetUrl)$('#plan-url').value=site.origin+'/';
+ const detected=site.ga4?.measurementIds?.[0];
+ if(detected&&!$('#ga-measurement').value.trim())$('#ga-measurement').value=detected;
+ renderSelectedSiteStatus();renderBrief();
+ return true;
+}
+function updateSiteProof(){
+ let host='your-domain.com';
+ try{host=normalizeSiteDomain($('#site-domain').value).hostname}catch{}
+ $('#site-dns-name').value='_visitorlab.'+host;
+ $('#site-dns-value').value='visitorlab-verification='+state.siteToken;
+}
+function resetSiteSetup(){
+ state.siteToken=freshToken();$('#site-domain').value='';$('#site-authorized').checked=false;
+ $('#site-verify-result').textContent='';$('#site-verify-result').className='inline-result';
+ updateSiteProof();$('#site-domain').focus();
+}
+function loadSiteSetup(host){
+ const site=state.store.sites.find(s=>s.hostname===host);if(!site)return;
+ state.siteToken=site.verificationToken;$('#site-domain').value=site.hostname;
+ $('#site-authorized').checked=site.authorized===true;updateSiteProof();nav('websites');
+ $('#site-verify-result').textContent='Record loaded for '+site.hostname+'. Confirm the TXT value is published, then verify.';
+ $('#site-verify-result').className='inline-result';
+}
+function saveSiteSetup(){
+ if(!$('#site-authorized').checked)throw new Error('Confirm that you own this website or have written permission to test it.');
+ const {hostname,origin}=normalizeSiteDomain($('#site-domain').value);
+ const old=state.store.sites.find(s=>s.hostname===hostname);
+ const sameToken=old?.verificationToken===state.siteToken;
+ const site={hostname,origin,verificationToken:state.siteToken,authorized:true,verificationMethod:'dns_txt',
+  status:sameToken?old.status:'pending',verifiedAt:sameToken?old.verifiedAt:null,
+  ga4:sameToken?old.ga4:null,createdAt:old?.createdAt||new Date().toISOString()};
+ state.store.sites=state.store.sites.filter(s=>s.hostname!==hostname);
+ state.store.sites.push(site);save();
+ return site;
+}
+async function verifySiteSetup(){
+ let site;
+ try{site=saveSiteSetup()}catch(e){$('#site-verify-result').textContent=e.message;$('#site-verify-result').className='inline-result bad';return;}
+ const button=$('#site-verify');button.disabled=true;button.textContent='Checking DNS + Google tag…';
+ $('#site-verify-result').textContent='Checking TXT record at _visitorlab.'+site.hostname+' and inspecting the site…';
+ $('#site-verify-result').className='inline-result';
+ try{
+  const response=await http('/api/site-verify',{method:'POST',auth:true,
+   body:{targetUrl:site.origin+'/',verificationToken:site.verificationToken,authorized:true}});
+  if(response?.verification?.verified!==true)throw new Error('Domain could not be verified.');
+  site.status='verified';site.verifiedAt=response.verification.checkedAt;site.ga4=response.ga4||null;
+  save();
+  selectVerifiedSite(site.hostname);
+  const ga=site.ga4||{};
+  const message=ga.measurementIds?.length
+   ?'GA4 Measurement ID detected: '+ga.measurementIds.join(', ')+'. Pre-filled in new test campaigns; test event sending remains disabled unless you opt in.'
+   :ga.tagManagerIds?.length
+   ?'Tag Manager detected: '+ga.tagManagerIds.join(', ')+'. GA4 Measurement ID is not visible in the initial HTML.'
+   :'GA4 Measurement ID was not detected in static HTML; runtime-loaded tags may not be visible.';
+  $('#site-verify-result').textContent='✓ DNS verified for '+site.hostname+'. '+message+
+   ' This does not prove Google Analytics is receiving data.';
+  $('#site-verify-result').className='inline-result ok';
+ }catch(e){
+  site.status='pending';site.verifiedAt=null;site.ga4=null;save();
+  $('#site-verify-result').textContent='Verification pending: '+e.message+
+    '. Save the DNS setup and retry after publishing the TXT record. Connect the API key under Integrations if needed.';
+  $('#site-verify-result').className='inline-result bad';
+ }finally{button.disabled=false;button.textContent='Verify TXT & detect GA4 ↗';}
+}
+function renderWebsites(){
+ const list=state.store.sites||[];
+ $('#website-list').innerHTML=list.length?'<div class="record-list">'+list.map(site=>{
+  const verified=site.status==='verified',ga=site.ga4||{};
+  const gaText=ga.measurementIds?.length?'GA4 tag: '+ga.measurementIds.join(', '):
+   ga.tagManagerIds?.length?'GTM: '+ga.tagManagerIds.join(', ')+' (GA4 ID not visible)':
+   verified?'GA4 ID not detected in HTML':'GA4 not yet scanned';
+  return '<div class="record-row site-record"><span class="record-icon">◎</span>'+
+   '<div class="record-desc"><b>'+encode(site.hostname)+'</b><small>DNS TXT · '+(verified?'Verified '+encode(time(site.verifiedAt)):'Awaiting TXT verification')+'</small>'+
+   '<div class="site-tag-status">'+encode(gaText)+'</div></div>'+
+   '<span class="status '+(verified?'success':'pending')+'">'+(verified?'Verified':'Pending')+'</span>'+
+   '<div class="site-record-actions"><button class="link-button" data-site-check="'+encode(site.hostname)+'">'+(verified?'Recheck DNS & GA4':'Verify TXT')+'</button>'+
+   (verified?'<button class="link-button" data-site-use="'+encode(site.hostname)+'">Create test →</button>':'')+
+   '<button class="link-button" data-site-remove="'+encode(site.hostname)+'">Remove</button></div></div>';
+ }).join('')+'</div>':emptyMarkup('No websites registered yet. Add your domain and publish the TXT record shown above.');
+}
 function renderDeviceMatrix(){const devs=state.spec?.devices||FALLBACK_DEVICES;const sample={desktop:['Desktop','Chromium · Firefox · WebKit'],iphone:['iOS viewport','Touch · WebKit-style dimensions'],android:['Android viewport','Mobile touch profile'],ipad:['Tablet landscape/portrait','Touch · retina viewport'],tablet:['Android tablet','Tablet touch profile']};$('#device-cards').innerHTML=Object.entries(devs).map(([key,d])=>'<div class="panel device-card"><div class="device-glyph">'+DEVICE_ICON[key]+'</div><h3>'+encode(d.name)+'</h3><p>'+encode(sample[key]?.[1]||'Playwright browser emulation profile')+'</p><small>'+encode((d.class||'device').toUpperCase())+' TEST PROFILE</small></div>').join('');}
 function renderCountryOptions(){const countries=state.spec?.countries||FALLBACK_COUNTRIES;$('#country-options').innerHTML=Object.entries(countries).map(([code,c])=>'<button type="button" data-country="'+code+'" class="choice '+(state.countryCodes.includes(code)?'selected':'')+'" aria-pressed="'+state.countryCodes.includes(code)+'"><span class="flag">'+(FLAG[code]||'🌍')+'</span><b>'+encode(c.name)+'</b><span class="tick">✓</span></button>').join('');}
 function renderDeviceOptions(){const devs=state.spec?.devices||FALLBACK_DEVICES;$('#device-options').innerHTML=Object.entries(devs).map(([key,d])=>'<button type="button" data-device="'+key+'" class="choice device '+(state.devices.includes(key)?'selected':'')+'" aria-pressed="'+state.devices.includes(key)+'"><span>'+DEVICE_ICON[key]+'</span><div><b>'+encode(d.name)+'</b><small>'+encode(d.class||'device')+'</small></div><span class="tick">✓</span></button>').join('');}
