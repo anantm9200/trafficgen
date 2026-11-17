@@ -4,6 +4,7 @@ import {performance} from 'node:perf_hooks';
 import {normalizePlan,COUNTRIES,DEVICES,safePath,toSyntheticUrl,publicPlan,msSummary} from '../src/plan.mjs';
 import {verifyOwnership} from '../src/ownership.mjs';
 import {submitGA4} from '../src/ga4.mjs';
+import {analyzeWithDGX} from '../src/intelligence.mjs';
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const BLOCKED_HOSTS=['google-analytics.com','googletagmanager.com','doubleclick.net','facebook.com','connect.facebook.net','clarity.ms','hotjar.com','segment.io','plausible.io','posthog.com'];
@@ -140,6 +141,7 @@ async function main(){
  const json=env?Buffer.from(process.env.PLAN_B64||'','base64url').toString('utf8'):await readFile(resolve(filename),'utf8');
  if(json.length>16000)throw new Error('Plan too large');
  const result=await execute(JSON.parse(json));
+ result.intelligence=await analyzeWithDGX(result);
  await mkdir('reports',{recursive:true});
  const filenameOut='reports/report-'+result.plan.runId+'.json';
  await writeFile(filenameOut,JSON.stringify(result,null,2)+'\n');
