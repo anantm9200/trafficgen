@@ -202,11 +202,11 @@ The dashboard now supports a **real HTTP site inspection** without requiring the
 
 1. Open **Websites**, enter your public HTTPS hostname, and copy the automatically generated DNS TXT record name and value.
 2. Publish the record at your DNS provider. Select **Save DNS setup** to keep the pending registration, then **Verify TXT & detect GA4** once DNS has propagated.
-3. Connect your TrafficGen `TG_API_KEY` in Integrations if needed; it is held only for the browser tab session.
+3. Click **Verify TXT & detect GA4**. This step no longer requires an API key. If verification fails, the public DNS-status check distinguishes missing TXT records from a saved-token mismatch.
 4. Select the verified domain in **New test** and choose **Run live site inspection** at the Review step.
 5. Review the measured response status, elapsed duration, HTML title, description, H1 headings, image alt indicators, canonical, robots directive and security headers. See **Analytics → Verified site inspections** for saved observations and JSON exports.
 
-Backend: `POST /api/site-verify` verifies the DNS TXT record and performs passive GA4/Tag Manager inspection of the first HTML response (no JavaScript execution). It reports detected `G-` IDs separately from `GTM-` containers and does not establish whether analytics events are actually received. Verified domains are saved locally and reused in campaigns without reentering a token. Ownership is still rechecked by the server on every protected action.
+Backend: `POST /api/site-verify` verifies the DNS TXT record **without a bearer API key** and performs one bounded passive GA4/Tag Manager inspection of the initial HTML response (no JavaScript execution). It requires the TXT proof first, refuses private addresses, and applies best-effort per-instance throttling. `GET /api/dns-status?hostname=example.com` provides token-free, read-only DNS propagation diagnostics without exposing TXT verification values. It reports detected `G-` IDs separately from `GTM-` containers and does not establish whether analytics events are actually received. Verified domains are saved locally and reused in campaigns without reentering a token. Ownership is still rechecked by the server on every protected action.
 
 Backend: `POST /api/inspect`, authenticated with `Authorization: Bearer TG_API_KEY`, accepts the same bounded plan used by `/api/validate`. It checks the public domain and ownership proof, pins the site's HTTPS request to a publicly resolved IP, refuses redirects, refuses unsafe URLs and limits page data to 512 KiB. It performs **one synthetic-tagged HTTP GET**; it does not pretend to be a human browser or count as a browser test session.
 
