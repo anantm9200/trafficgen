@@ -5,6 +5,7 @@ const routes=new Map([
  ['GET /api/health','../api/health.js'],
  ['GET /api/spec','../api/spec.js'],
  ['POST /api/validate','../api/validate.js'],
+ ['POST /api/site-verify','../api/site-verify.js'],
  ['POST /api/dispatch','../api/dispatch.js'],
  ['GET /api/runs','../api/runs.js'],
  ['POST /api/ga4-test','../api/ga4-test.js']
