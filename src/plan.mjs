@@ -44,6 +44,8 @@ export function normalizePlan(input){
  const target=parseTarget(input.targetUrl);
  if(input.authorized!==true)throw error('authorized:true is required. You must own or have permission for the target.');
  const verificationToken=text(input.verificationToken,'verificationToken',120);
+ const verificationMethod=input.verificationMethod??'dns_txt';
+ if(!['dns_txt','http_file'].includes(verificationMethod))throw error('Invalid website ownership verification method');
  if(!/^tg_[A-Za-z0-9_-]{16,100}$/.test(verificationToken))throw error('verificationToken must look like tg_ followed by at least 16 letters or digits');
  const countries=input.countries??['US'];
  if(!Array.isArray(countries)||countries.length<1||countries.length>8||new Set(countries).size!==countries.length||countries.some(c=>!COUNTRIES[c]))throw error('Select 1–8 unique supported country codes');
@@ -65,7 +67,7 @@ export function normalizePlan(input){
  return {
   schemaVersion:1,runId:(typeof input.runId==='string'&&/^[a-f0-9-]{36}$/.test(input.runId))?input.runId:randomUUID(),
   name:text(input.name??'Authorized browser test','name',80),
-  targetUrl:target.toString(),authorized:true,verificationToken,
+  targetUrl:target.toString(),authorized:true,verificationToken,verificationMethod,
   sessions,concurrency,intervalSeconds,dwellSeconds,maxPages,countries,devices,browser,
   interactions:{
    scroll:input.interactions?.scroll!==false,
