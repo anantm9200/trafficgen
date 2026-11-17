@@ -2,6 +2,13 @@
 
 ## Web dashboard (production)
 
+**Verified production URLs:** https://trafficgen-ua6y.vercel.app/ and https://trafficgen.vercel.app/. Both names are attached to the same connected Vercel TrafficGen project. The user-designated hostname was attached and validated on November 17, 2026.
+
+**Reliability:** The project now has an hourly GitHub Actions production check at `.github/workflows/hourly-health.yml` plus mandatory JavaScript syntax gates and a real Playwright Chromium dashboard regression test. Hourly checks monitor both production hostnames and fail for broken JavaScript or API responses. GitHub scheduling can be delayed; these automated checks do not automatically write new features.
+
+**Google integrations:** Synthetic website visits can send explicitly named GA4 Measurement Protocol test events when the owned `GA4_MEASUREMENT_ID` and `GA4_API_SECRET` are configured. Search Console does not ingest ordinary test visits or manufacture organic Google Search impressions/clicks; use verified Search Console properties for legitimate indexing, sitemap and search-performance checks.
+
+
 The frontend is available at **https://trafficgen.vercel.app/**, with Overview, New Test, Campaigns, Run Monitor, Analytics, Websites, Device Lab, and Integrations. The dashboard is the verified responsive preview promoted by GitHub integration. The existing `/api/*` endpoints remain in place.
 
 Dashboard campaigns and imported reports live in browser localStorage; API keys entered under Integrations live only in sessionStorage for the current tab. The dashboard shows actual workflow runs only when authenticated, and never fabricates analytics.
