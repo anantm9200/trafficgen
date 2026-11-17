@@ -8,16 +8,16 @@ const DEVICE_ICON={desktop:'▣',iphone:'▯',android:'▯',ipad:'▤',tablet:'�
 const UTM_LABELS={utm_source:'Traffic source',utm_medium:'Medium',utm_campaign:'Campaign name',utm_id:'Campaign ID',utm_term:'Campaign term',utm_content:'Creative / content',utm_source_platform:'Source platform',utm_creative_format:'Creative format',utm_marketing_tactic:'Marketing tactic'};
 const FALLBACK_COUNTRIES={US:{name:'United States'},IN:{name:'India'},AE:{name:'United Arab Emirates'},DE:{name:'Germany'},GB:{name:'United Kingdom'},FR:{name:'France'},SG:{name:'Singapore'},AU:{name:'Australia'},CA:{name:'Canada'},ZA:{name:'South Africa'},NA:{name:'Namibia'},TZ:{name:'Tanzania'}};
 const FALLBACK_DEVICES={desktop:{name:'Desktop',class:'desktop'},iphone:{name:'iPhone',class:'mobile'},android:{name:'Android',class:'mobile'},ipad:{name:'iPad',class:'tablet'},tablet:{name:'Android tablet',class:'tablet'}};
-const emptyStorage=()=>({campaigns:[],reports:[]});
-function storageLoad(){try{const x=JSON.parse(localStorage.getItem(STORE));return Array.isArray(x?.campaigns)&&Array.isArray(x?.reports)?x:emptyStorage();}catch{return emptyStorage();}}
-const state={route:'overview',step:0,campaignId:null,spec:null,health:null,runs:null,store:storageLoad(),apiKey:sessionStorage.getItem(TOKEN_KEY)||'',countryCodes:['AE','IN','US'],devices:['desktop','iphone'],busy:false};
+const emptyStorage=()=>({campaigns:[],reports:[],inspections:[]});
+function storageLoad(){try{const x=JSON.parse(localStorage.getItem(STORE));return Array.isArray(x?.campaigns)&&Array.isArray(x?.reports)?{...emptyStorage(),...x,inspections:Array.isArray(x.inspections)?x.inspections:[]}:emptyStorage();}catch{return emptyStorage();}}
+const state={route:'overview',step:0,campaignId:null,spec:null,health:null,runs:null,store:storageLoad(),apiKey:sessionStorage.getItem(TOKEN_KEY)||'',countryCodes:['AE','IN','US'],devices:['desktop','iphone'],busy:false,authenticated:false};
 const encode=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const time=d=>{if(!d)return '—';const x=new Date(d);return Number.isNaN(x.getTime())?'—':x.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})};
 function notify(msg){const el=$('#toast');el.textContent=msg;el.classList.add('visible');clearTimeout(notify.timer);notify.timer=setTimeout(()=>el.classList.remove('visible'),3800);}
-function save(){localStorage.setItem(STORE,JSON.stringify(state.store));renderCounts();renderCampaigns();renderWebsites();renderReports();}
+function save(){localStorage.setItem(STORE,JSON.stringify(state.store));renderCounts();renderCampaigns();renderWebsites();renderReports();renderInspections();}
 function displayStatus(value){const s=String(value||'').toLowerCase();if(['success','completed'].includes(s))return ['success','Passed'];if(['failure','error','cancelled','timed_out'].includes(s))return ['failure','Failed'];if(['queued','pending','in_progress','waiting','requested'].includes(s))return ['pending','Running'];return ['neutral',value||'Unknown'];}
 const API_LABEL={'overview':'Overview','builder':'New test','campaigns':'Campaigns','runs':'Run monitor','analytics':'Analytics','websites':'Websites','devices':'Device lab','settings':'Integrations'};
-function nav(route){if(!API_LABEL[route])return;state.route=route;$$('.view').forEach(el=>el.classList.toggle('active',el.id==='view-'+route));$$('[data-route].nav-link').forEach(el=>el.classList.toggle('active',el.dataset.route===route));$('#breadcrumb-current').textContent=API_LABEL[route];$('#sidebar').classList.remove('open');$('#mobile-backdrop').classList.remove('open');if(location.hash!=='#'+route)history.replaceState(null,'','#'+route);window.scrollTo({top:0,behavior:'instant'});if(route==='runs')void refreshRuns();if(route==='analytics')renderReports();}
+function nav(route){if(!API_LABEL[route])return;state.route=route;$$('.view').forEach(el=>el.classList.toggle('active',el.id==='view-'+route));$$('[data-route].nav-link').forEach(el=>el.classList.toggle('active',el.dataset.route===route));$('#breadcrumb-current').textContent=API_LABEL[route];$('#sidebar').classList.remove('open');$('#mobile-backdrop').classList.remove('open');if(location.hash!=='#'+route)history.replaceState(null,'','#'+route);window.scrollTo({top:0,behavior:'instant'});if(route==='runs')void refreshRuns();if(route==='analytics'){renderReports();renderInspections();}}
 function freshToken(){const bytes=new Uint8Array(24);crypto.getRandomValues(bytes);return 'tg_'+Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');}
 function newId(){return crypto.randomUUID?.()||'test-'+Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');}
 async function http(path,{method='GET',body=null,auth=false}={}){
@@ -68,7 +68,45 @@ function download(name,obj){const blob=new Blob([JSON.stringify(obj,null,2)+'\n'
 function saveCampaign(){let plan=readPlan();const id=state.campaignId||newId(),now=new Date().toISOString();const old=state.store.campaigns.find(x=>x.id===id);const record={...plan,id,createdAt:old?.createdAt||now,updatedAt:now};state.store.campaigns=state.store.campaigns.filter(x=>x.id!==id);state.store.campaigns.push(record);state.campaignId=id;save();notify('Campaign saved to this browser.');return record;}
 function loadCampaign(id){const item=state.store.campaigns.find(x=>x.id===id);if(!item)return;state.campaignId=item.id;$('#plan-name').value=item.name;$('#plan-url').value=item.targetUrl;$('#plan-token').value=item.verificationToken;$('#plan-authorized').checked=item.authorized===true;state.countryCodes=[...item.countries];state.devices=[...item.devices];$('#plan-browser').value=item.browser;$('#plan-sessions').value=item.sessions;$('#plan-concurrency').value=item.concurrency;$('#plan-interval').value=item.intervalSeconds;$('#plan-dwell').value=item.dwellSeconds;$('#plan-depth').value=item.maxPages;$('#plan-scroll').checked=item.interactions.scroll;$('#plan-navigate').checked=item.interactions.navigate;$('#plan-hover').checked=item.interactions.hover;$('#plan-images').checked=item.interactions.checkImages;$('#ga-enabled').checked=item.analytics?.enabled===true;$('#ga-measurement').value=item.analytics?.measurementId||'';$$('[data-utm]').forEach(el=>el.value=item.analytics?.utm?.[el.dataset.utm]||'');renderCountryOptions();renderDeviceOptions();renderBrief();state.step=0;renderWizard();nav('builder');notify('Campaign loaded for editing.');}
 function renderReports(){const reports=state.store.reports;$('#report-count').textContent=reports.length;const s=reports.reduce((t,r)=>t+(r.summary?.completed||0),0),passed=reports.reduce((t,r)=>t+(r.summary?.passed||0),0);$('#report-sessions').textContent=s;$('#report-passed').textContent=passed;const p95=reports.flatMap(r=>r.sessions?.flatMap(x=>x.pages?.map(p=>p.durationMs)||[])||[]).sort((a,b)=>a-b);$('#report-p95').textContent=p95.length?p95[Math.ceil(p95.length*.95)-1]+'ms':'—';$('#report-list').innerHTML=reports.length?'<div class="record-list">'+[...reports].reverse().map((r,i)=>'<div class="record-row"><span class="record-icon">⌁</span><div class="record-desc"><b>'+encode(r.plan?.name||'Imported test report')+'</b><small>'+encode(r.plan?.runId||'Unknown run')+' · '+encode(r.summary?.completed||0)+' sessions · '+encode(time(r.summary?.finishedAt))+'</small></div><span class="status '+((r.summary?.failed||0)>0?'failure':'success')+'">'+encode(r.summary?.passed||0)+' passed</span><button class="link-button" data-export-report="'+encode(r.plan?.runId||'')+'">Export ↓</button></div>').join('')+'</div>':emptyMarkup('Import a real JSON report downloaded from a completed Playwright worker run.');}
-function renderIntegrations(){const h=state.health;const statuses=[['Vercel service',!!h?.ok],['API access key',!!h?.security?.authConfigured],['GitHub dispatch token',!!h?.security?.workflowConfigured],['GA4 Measurement Protocol',!!h?.security?.ga4Configured],['Browser worker','via GitHub Actions'],['DGX intelligence','optional, private']];$('#service-status').innerHTML=statuses.map(([name,ready])=>'<div class="service-line"><span>'+encode(name)+'</span><span class="status '+(ready===true?'success':ready===false?'failure':'neutral')+'">'+(ready===true?'Configured':ready===false?'Not configured':encode(ready))+'</span></div>').join('');$('#settings-token').value=state.apiKey;}
+
+function renderInspections(){
+ const list=state.store.inspections||[];
+ const label=$('#inspection-count'),container=$('#inspection-list');
+ if(!label||!container)return;
+ label.textContent=list.length+' verified inspection'+(list.length===1?'':'s');
+ if(!list.length){container.innerHTML=emptyMarkup('Use Run live site inspection in the campaign builder. A verified website and API access are required.');return;}
+ container.innerHTML='<div class="record-list">'+[...list].reverse().map(a=>{
+  const issues=(a.findings||[]).filter(f=>['high','medium'].includes(f.level)).length;
+  const observations=a.observations||{};
+  return '<div class="record-row"><span class="record-icon">◎</span><div class="record-desc"><b>'+encode(observations.title||a.target||'Verified site')+'</b><small>'+encode(a.target||'')+' · HTTP '+encode(a.status)+' · '+encode(a.durationMs)+' ms · '+encode(time(a.timestamp))+'</small>'+
+   '<details><summary>'+issues+' prioritized finding'+(issues===1?'':'s')+' · '+encode(a.findings?.length||0)+' total observations</summary><div class="inspection-findings">'+
+   (a.findings||[]).map(f=>'<p><b>'+encode(f.level.toUpperCase())+': '+encode(f.code)+'</b> '+encode(f.message)+'</p>').join('')+'</div></details></div>'+
+   '<span class="status '+(a.ok?'success':'failure')+'">'+(a.ok?'HTTP OK':'HTTP FAIL')+'</span>'+
+   '<button class="link-button" data-export-inspection="'+encode(a.runId)+'">Export ↓</button></div>';
+ }).join('')+'</div>';
+}
+function saveDraft(){
+ const now=new Date().toISOString(),id=state.campaignId||newId();
+ const original=state.store.campaigns.find(c=>c.id===id);
+ const utm={};$('[data-utm]').forEach(el=>{if(el.value.trim())utm[el.dataset.utm]=el.value.trim()});
+ const numberOr=(id,fallback)=>{const n=Number($('#'+id).value);return Number.isFinite(n)?n:fallback;};
+ const plan={
+  id,name:$('#plan-name').value.trim()||'Untitled draft',targetUrl:$('#plan-url').value.trim(),
+  authorized:$('#plan-authorized').checked,verificationToken:$('#plan-token').value.trim(),
+  countries:[...state.countryCodes],devices:[...state.devices],browser:$('#plan-browser').value,
+  sessions:numberOr('plan-sessions',6),concurrency:numberOr('plan-concurrency',1),
+  intervalSeconds:numberOr('plan-interval',8),dwellSeconds:numberOr('plan-dwell',15),
+  maxPages:numberOr('plan-depth',2),
+  interactions:{scroll:$('#plan-scroll').checked,navigate:$('#plan-navigate').checked,
+   hover:$('#plan-hover').checked,checkImages:$('#plan-images').checked},
+  analytics:{enabled:$('#ga-enabled').checked,measurementId:$('#ga-measurement').value.trim().toUpperCase(),utm},
+  draft:true,createdAt:original?.createdAt||now,updatedAt:now
+ };
+ state.campaignId=id;state.store.campaigns=state.store.campaigns.filter(x=>x.id!==id);state.store.campaigns.push(plan);
+ save();notify('Draft saved locally. Verification is required before live testing.');
+ return plan;
+}
+function renderIntegrations(){const h=state.health;const statuses=[['Vercel service',!!h?.ok],['API configured on server',!!h?.security?.authConfigured],['Workspace session authenticated',state.authenticated],['GitHub dispatch token',!!h?.security?.workflowConfigured],['GA4 Measurement Protocol',!!h?.security?.ga4Configured],['Browser worker','via GitHub Actions'],['DGX intelligence','optional, private']];$('#service-status').innerHTML=statuses.map(([name,ready])=>'<div class="service-line"><span>'+encode(name)+'</span><span class="status '+(ready===true?'success':ready===false?'failure':'neutral')+'">'+(ready===true?'Configured':ready===false?'Not configured':encode(ready))+'</span></div>').join('');$('#settings-token').value=state.apiKey;}
 function wireEvents(){document.addEventListener('click',e=>{
  const route=e.target.closest('[data-route]');if(route){nav(route.dataset.route);return;}
  const tab=e.target.closest('[data-wizard-tab]');if(tab){const n=Number(tab.dataset.wizardTab);if(n===4){try{readPlan();}catch(err){notify(err.message);return;}}state.step=n;renderWizard();return;}
@@ -83,19 +121,59 @@ function wireEvents(){document.addEventListener('click',e=>{
  $('#step-back').onclick=()=>{state.step=Math.max(0,state.step-1);renderWizard();};$('#step-next').onclick=()=>{if(state.step===3){try{readPlan();}catch(e){notify(e.message);return;}}state.step=Math.min(4,state.step+1);renderWizard();};
  $('#regen-token').onclick=()=>{$('#plan-token').value=freshToken();notify('New token generated. Update your site verification file.');};$('#copy-token').onclick=async()=>{try{await navigator.clipboard.writeText($('#plan-token').value);notify('Verification token copied.');}catch{notify('Copy manually from the token field.');}};
  ['plan-name','plan-url','plan-sessions','plan-browser','ga-measurement','ga-enabled'].forEach(id=>$('#'+id).addEventListener('input',renderBrief));
- $('#wizard-save').onclick=()=>{try{saveCampaign();}catch(e){notify(e.message);}};$('#review-save').onclick=()=>{try{saveCampaign();showResult('Campaign saved in this browser.',true);}catch(e){showResult(e.message);}};
+ $('#wizard-save').onclick=()=>{try{saveDraft();}catch(e){notify(e.message);}};$('#review-save').onclick=()=>{try{saveCampaign();showResult('Campaign saved in this browser.',true);}catch(e){showResult(e.message);}};
  $('#review-export').onclick=()=>{try{const plan=readPlan();download('trafficgen-'+(plan.name.replace(/[^a-z0-9]+/gi,'-').slice(0,35).toLowerCase()||'plan')+'.json',plan);showResult('Downloaded a verified-target configuration. Actual authorization is rechecked at execution.',true);}catch(e){showResult(e.message);}};
  $('#review-verify').onclick=async()=>{let plan;try{plan=readPlan();}catch(e){showResult(e.message);return;}showResult('Checking domain ownership…',true);try{const response=await http('/api/validate',{method:'POST',body:plan,auth:true});showResult('Website verified: '+response.verification.hostname+' at '+time(response.verification.checkedAt),true);}catch(e){showResult('Verification failed: '+e.message);}};
+
+ $('#review-audit').onclick=async()=>{
+  let plan;
+  try{plan=readPlan();}catch(e){showResult(e.message);return;}
+  const button=$('#review-audit');button.disabled=true;button.textContent='Running verified site inspection…';
+  showResult('Verifying ownership and fetching one tagged HTTPS page…',true);
+  try{
+   const response=await http('/api/inspect',{method:'POST',body:plan,auth:true});
+   const result=response.audit;
+   if(!result||result.kind!=='site_inspection')throw new Error('Unexpected inspection result');
+   state.store.inspections=state.store.inspections.filter(x=>x.runId!==result.runId);
+   state.store.inspections.push(result);
+   state.store.inspections=state.store.inspections.slice(-100);
+   save();
+   const priorities=result.findings.filter(x=>['high','medium'].includes(x.level));
+   showResult('Verified inspection completed: HTTP '+result.status+' · '+result.durationMs+' ms · '+result.observations.title+
+    ' · '+priorities.length+' prioritized finding(s). Full report saved in Analytics → Verified site inspections.',true);
+  }catch(e){showResult('Site inspection unavailable: '+e.message);}
+  finally{button.disabled=false;button.textContent='Run live site inspection ↗';}
+ };
  $('#review-dispatch').onclick=async()=>{let plan;try{plan=readPlan();}catch(e){showResult(e.message);return;}if(!confirm('Dispatch '+plan.sessions+' identified synthetic sessions to '+new URL(plan.targetUrl).hostname+'?'))return;showResult('Validating and dispatching test…',true);try{const res=await http('/api/dispatch',{method:'POST',body:plan,auth:true});saveCampaign();showResult('Dispatched run '+res.runId+' to GitHub Actions. Check Run monitor for status.',true);}catch(e){showResult('Dispatch unavailable: '+e.message+'\nIf workflow dispatch is unconfigured, export your plan and commit to plans/active.json on GitHub.');}};
  $('#refresh-runs').onclick=()=>void refreshRuns();$('#refresh-health').onclick=()=>void checkHealth();
- $('#connect-api').onclick=async()=>{const key=$('#settings-token').value.trim();if(!key||key.length<24){$('#api-connection-result').textContent='Enter the 24+ character API key from Vercel.';return;}state.apiKey=key;sessionStorage.setItem(TOKEN_KEY,key);try{const ready=await http('/api/auth-check',{auth:true});$('#api-connection-result').textContent=ready.integrations.githubWorkflow?'API authorized. GitHub workflow connection is ready.':'API authorized. Website verification is available; one-click dispatch still needs GITHUB_WORKFLOW_TOKEN.';$('#api-connection-result').className='inline-result ok';if(ready.integrations.githubWorkflow)await refreshRuns();else{state.runs=null;renderRuns();}}catch(e){sessionStorage.removeItem(TOKEN_KEY);state.apiKey='';$('#api-connection-result').textContent='API authorization failed: '+e.message;$('#api-connection-result').className='inline-result bad';}notify('Workspace connection checked.');};
- $('#disconnect-api').onclick=()=>{state.apiKey='';sessionStorage.removeItem(TOKEN_KEY);$('#settings-token').value='';state.runs=null;renderRuns();$('#api-connection-result').textContent='Key cleared from this tab.';notify('Disconnected.');};
+ $('#connect-api').onclick=async()=>{const key=$('#settings-token').value.trim();if(!key||key.length<24){$('#api-connection-result').textContent='Enter the 24+ character API key from Vercel.';return;}state.apiKey=key;sessionStorage.setItem(TOKEN_KEY,key);try{const ready=await http('/api/auth-check',{auth:true});$('#api-connection-result').textContent=ready.integrations.githubWorkflow?'API authorized. GitHub workflow connection is ready.':'API authorized. Website verification is available; one-click dispatch still needs GITHUB_WORKFLOW_TOKEN.';$('#api-connection-result').className='inline-result ok';state.authenticated=true;renderIntegrations();if(ready.integrations.githubWorkflow)await refreshRuns();else{state.runs=null;renderRuns();}}catch(e){sessionStorage.removeItem(TOKEN_KEY);state.apiKey='';state.authenticated=false;renderIntegrations();$('#api-connection-result').textContent='API authorization failed: '+e.message;$('#api-connection-result').className='inline-result bad';}notify('Workspace connection checked.');};
+ $('#disconnect-api').onclick=()=>{state.apiKey='';state.authenticated=false;sessionStorage.removeItem(TOKEN_KEY);$('#settings-token').value='';state.runs=null;renderRuns();$('#api-connection-result').textContent='Key cleared from this tab.';notify('Disconnected.');};
  $('#toggle-token').onclick=()=>{const input=$('#settings-token');input.type=input.type==='password'?'text':'password';$('#toggle-token').textContent=input.type==='password'?'Show':'Hide';};
  $('#backup-workspace').onclick=()=>download('trafficgen-workspace-backup.json',state.store);
+ $('#restore-workspace').onclick=()=>$('#workspace-file').click();
+ $('#workspace-file').addEventListener('change',async e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  try{
+   if(file.size>2_000_000)throw new Error('Workspace backup exceeds 2 MB');
+   const data=JSON.parse(await file.text());
+   if(!data||!Array.isArray(data.campaigns)||!Array.isArray(data.reports))throw new Error('Not a TrafficGen workspace backup');
+   const campaigns=data.campaigns.slice(-500);
+   const reports=data.reports.slice(-100);
+   const inspections=(Array.isArray(data.inspections)?data.inspections:[]).slice(-100);
+   if(campaigns.some(x=>!x||typeof x.id!=='string'||typeof x.name!=='string')||
+      reports.some(x=>!x||typeof x.summary!=='object'||!x.plan)||
+      inspections.some(x=>!x||x.kind!=='site_inspection'||typeof x.runId!=='string'))
+     throw new Error('Backup contains invalid records');
+   if(!confirm('Restore '+campaigns.length+' campaigns, '+reports.length+' browser reports and '+inspections.length+' site inspections? Existing local data will be replaced.'))return;
+   state.store={campaigns,reports,inspections};state.campaignId=null;save();
+   notify('Workspace successfully restored from JSON.');
+  }catch(err){notify('Restore failed: '+err.message);}
+  finally{e.target.value='';}
+ });
  $('#clear-workspace').onclick=()=>{if(confirm('Erase locally saved campaigns and imported reports? The GitHub repository and external test results are unaffected.')){state.store=emptyStorage();save();notify('Local workspace cleared.');}};
  $('#import-report').onclick=()=>$('#report-file').click();$('#report-file').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>3_000_000)throw Error('Report exceeds 3 MB');const data=JSON.parse(await file.text());if(typeof data!=='object'||!data||!Array.isArray(data.sessions)||typeof data.summary!=='object'||!data.plan?.runId)throw Error('Not a recognized TrafficGen worker report.');state.store.reports=state.store.reports.filter(r=>r.plan.runId!==data.plan.runId);state.store.reports.push(data);save();notify('Actual worker report imported.');}catch(err){notify('Report import failed: '+err.message);}finally{e.target.value='';}});
  $('#export-reports').onclick=()=>download('trafficgen-worker-reports.json',state.store.reports);
 }
-async function init(){renderUtm();$('#plan-token').value=freshToken();renderWizard();renderBrief();renderCounts();renderCampaigns();renderWebsites();renderRuns();renderReports();renderIntegrations();wireEvents();nav(location.hash.slice(1)||'overview');await Promise.all([checkHealth(),fetchSpec()]);}
+async function init(){renderUtm();$('#plan-token').value=freshToken();renderWizard();renderBrief();renderCounts();renderCampaigns();renderWebsites();renderRuns();renderReports();renderInspections();renderIntegrations();wireEvents();nav(location.hash.slice(1)||'overview');await Promise.all([checkHealth(),fetchSpec()]);}
 window.addEventListener('hashchange',()=>nav(location.hash.slice(1)||'overview'));
 init().catch(e=>{console.error(e);notify('Dashboard initialization failed: '+e.message);});
