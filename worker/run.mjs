@@ -99,7 +99,7 @@ async function runOne(index,plan,browser,playwright,shared){
 }
 export async function execute(planRaw,{launchBrowsers=true}={}){
  const plan=normalizePlan(planRaw);
- await verifyOwnership(plan.targetUrl,plan.verificationToken);
+ await verifyOwnership(plan.targetUrl,plan.verificationToken,{method:plan.verificationMethod});
  const startedAt=new Date().toISOString();
  const playwright=await import('playwright');
  const browser=await playwright[plan.browser].launch({headless:true});
