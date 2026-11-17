@@ -4,6 +4,10 @@ on:
   push:
     paths:
       - 'worker/**'
+      - 'app.js'
+      - 'index.html'
+      - 'styles.css'
+      - 'tests/dashboard-browser.test.mjs'
       - 'tests/browser.test.mjs'
       - '.github/workflows/browser-smoke.yml'
 permissions:
@@ -21,4 +25,4 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - run: node --test tests/browser.test.mjs
+      - run: node --test tests/browser.test.mjs tests/dashboard-browser.test.mjs
