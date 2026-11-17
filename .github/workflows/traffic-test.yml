@@ -1,0 +1,44 @@
+name: Verified synthetic browser test
+on:
+  workflow_dispatch:
+    inputs:
+      plan_b64:
+        description: Base64url JSON test plan dispatched by the authenticated Vercel API
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: trafficgen-worker
+  cancel-in-progress: false
+jobs:
+  browser-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PLAN_B64: ${{ inputs.plan_b64 }}
+      GA4_MEASUREMENT_ID: ${{ secrets.GA4_MEASUREMENT_ID }}
+      GA4_API_SECRET: ${{ secrets.GA4_API_SECRET }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b163ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install tested runtime
+        run: npm install --no-audit --no-fund
+      - name: Install browser runtime
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Validate source
+        run: npm test
+      - name: Execute authorized browser journeys
+        run: node worker/run.mjs --env-plan
+      - name: Save execution reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visitorlab-report-${{ github.run_id }}
+          path: reports/*.json
+          if-no-files-found: warn
+          retention-days: 14
