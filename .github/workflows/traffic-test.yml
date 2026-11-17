@@ -19,6 +19,9 @@ jobs:
       PLAN_B64: ${{ inputs.plan_b64 }}
       GA4_MEASUREMENT_ID: ${{ secrets.GA4_MEASUREMENT_ID }}
       GA4_API_SECRET: ${{ secrets.GA4_API_SECRET }}
+      DGX_AI_ENDPOINT: ${{ secrets.DGX_AI_ENDPOINT }}
+      DGX_AI_MODEL: ${{ secrets.DGX_AI_MODEL }}
+      DGX_AI_API_KEY: ${{ secrets.DGX_AI_API_KEY }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
