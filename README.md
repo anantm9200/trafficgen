@@ -194,3 +194,23 @@ npm test
 ```
 
 CI checks configuration validation, public target safeguards and GA4 synthetic event shape; it does not run the browser against a public site without an ownership proof.
+
+## Verified, on-demand website inspection
+
+The dashboard now supports a **real HTTP site inspection** without requiring the GitHub workflow-dispatch token:
+
+1. Open New Test, choose a public HTTPS target, and generate the verification token.
+2. Publish the exact token as plain text at `https://TARGET/.well-known/visitorlab-verify.txt` (HTTP 200, no redirects).
+3. Connect your TrafficGen `TG_API_KEY` in Integrations; it is held for that tab session only.
+4. Open the campaign Review step and select **Run live site inspection**.
+5. Review the measured response status, elapsed duration, HTML title, description, H1 headings, image alt indicators, canonical, robots directive and security headers. See **Analytics → Verified site inspections** for saved observations and JSON exports.
+
+Backend: `POST /api/inspect`, authenticated with `Authorization: Bearer TG_API_KEY`, accepts the same bounded plan used by `/api/validate`. It checks the public domain and ownership proof, pins the site's HTTPS request to a publicly resolved IP, refuses redirects, refuses unsafe URLs and limits page data to 512 KiB. It performs **one synthetic-tagged HTTP GET**; it does not pretend to be a human browser or count as a browser test session.
+
+You can also save incomplete campaign drafts and restore a previously exported workspace JSON. Existing browser reports remain separate from inspected-page diagnostics.
+
+All Vercel functions remain subject to configured credentials. **Full Playwright browser journey dispatch** still requires `GITHUB_WORKFLOW_TOKEN` (or GitHub-native plan-on-push). **GA4 custom events** require a GA4 property and Measurement Protocol secret; **DGX** requires authenticated private connectivity.
+
+### Hourly and end-to-end checks
+
+`TrafficGen Hourly Health` checks both production aliases, required dashboard controls, JavaScript/CSS assets, JS parseability, JSON API schema, and anonymous rejection by the protected API. Separately, GitHub Actions Chromium tests exercise real UI interactions against an isolated controlled fixture on pull requests and relevant pushes. Neither check fabricates Google Search Console data.
