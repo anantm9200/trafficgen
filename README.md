@@ -78,6 +78,17 @@ npm start
 
 Health endpoint: `http://127.0.0.1:4174/api/health`. Only loopback interfaces are bound in the development server.
 
+## GitHub-native execution without an API dispatch token
+
+Because GitHub Actions is already connected to this private repository, you can **commit an authorized plan** to `plans/active.json` on `main` and GitHub Actions will run the verified browser worker automatically. No `GITHUB_WORKFLOW_TOKEN` is needed for this GitHub-native route.
+
+1. Generate a plan with `node bin/trafficgen.mjs template plan.json`.
+2. Edit the target, publish the verification file and set `authorized:true` after securing permission.
+3. Commit the JSON as `plans/active.json` using a normal authenticated GitHub push.
+4. Review the **Verified synthetic browser test** workflow and download its `visitorlab-report` artifact.
+
+The API `POST /api/dispatch` remains available if you later add a fine-grained `GITHUB_WORKFLOW_TOKEN`; it is **not required** for plan-on-push execution. The same target ownership check and session limits apply to either route. Never commit credentials or real visitor data to the plan.
+
 ## Create a plan and verify ownership
 
 ```sh
