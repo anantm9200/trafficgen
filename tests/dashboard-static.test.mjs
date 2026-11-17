@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {Script} from 'node:vm';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const css=readFileSync(new URL('../styles.css',import.meta.url),'utf8');
 const js=readFileSync(new URL('../app.js',import.meta.url),'utf8');
@@ -17,3 +18,5 @@ test('Static frontend links to real browser scripts',()=>{
  for(const route of ['/api/health','/api/spec','/api/validate','/api/dispatch','/api/runs'])
   assert.ok(js.includes(route),'missing '+route);
 });
+
+test('Delivered browser JavaScript parses without syntax errors',()=>{assert.doesNotThrow(()=>new Script(js,{filename:'app.js'}));assert.ok(js.includes('/api/auth-check'));});
