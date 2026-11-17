@@ -1,6 +1,16 @@
 # VisitorLab / TrafficGen
 
-**API-first, authorized synthetic browser testing with GA4 diagnostics and optional DGX intelligence.**
+## Web dashboard (production)
+
+The frontend is available at **https://trafficgen.vercel.app/**, with Overview, New Test, Campaigns, Run Monitor, Analytics, Websites, Device Lab, and Integrations. The dashboard is the verified responsive preview promoted by GitHub integration. The existing `/api/*` endpoints remain in place.
+
+Dashboard campaigns and imported reports live in browser localStorage; API keys entered under Integrations live only in sessionStorage for the current tab. The dashboard shows actual workflow runs only when authenticated, and never fabricates analytics.
+
+**Execution prerequisites:** API auth is configured on Vercel. One-click workflow dispatch requires a separately configured `GITHUB_WORKFLOW_TOKEN`. GA4 and DGX are optional and require their own explicitly authorized credentials. Verified target ownership is mandatory. Until these are connected, the respective controls display actionable errors instead of pretending to execute.
+
+
+
+**Responsive dashboard + authenticated API + authorized synthetic browser-testing worker, with GA4 diagnostics and optional DGX intelligence.**
 
 Repository: `anantm9200/trafficgen`
 
@@ -45,7 +55,7 @@ GitHub Actions JSON report artifact (14-day retention)
 
 ## Vercel deployment
 
-The project is connected to GitHub and automatically deploys pushes to `main`. Default `/` serves JSON health; no dashboard or frontend.
+The project is connected to GitHub and automatically deploys pushes to `main`. Default `/` serves the interactive dashboard. JSON health remains at `/api/health`.
 
 In Vercel project **trafficgen → Settings → Environment Variables**, configure:
 
