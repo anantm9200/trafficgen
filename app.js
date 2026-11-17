@@ -175,10 +175,25 @@ function renderDeviceOptions(){const devs=state.spec?.devices||FALLBACK_DEVICES;
 function renderWizard(){const tabs=['Website','Audience','Execution','Analytics','Review'];$('#wizard-track').innerHTML=tabs.map((label,i)=>'<button type="button" class="wizard-tab '+(i===state.step?'active':i<state.step?'done':'')+'" data-wizard-tab="'+i+'"><span class="stepnum">'+(i<state.step?'✓':(i+1))+'</span><span>'+label+'</span></button>').join('');$$('.step-card').forEach((el,i)=>el.classList.toggle('active',i===state.step));$('#step-back').disabled=state.step===0;$('#step-next').style.display=state.step===4?'none':'';$('#step-next').innerHTML=state.step===3?'Review test <span>→</span>':'Continue <span>→</span>';if(state.step===4)renderReview();}
 function renderUtm(){const grid=$('#utm-fields');grid.innerHTML=Object.entries(UTM_LABELS).map(([key,label])=>'<div><label for="'+key+'">'+label.toUpperCase()+'</label><input id="'+key+'" data-utm="'+key+'" maxlength="80" placeholder="'+(key==='utm_source'?'visitorlab':key==='utm_medium'?'synthetic_test':'Optional')+'"/></div>').join('');}
 function parseNumber(id,min,max){const raw=$('#'+id).value,n=Number(raw);if(raw.trim()===''||!Number.isInteger(n)||n<min||n>max)throw new Error(id.replace('plan-','').replaceAll('-',' ')+' must be between '+min+' and '+max+'.');return n;}
-function readPlan(){let url;try{url=new URL($('#plan-url').value.trim());}catch{throw new Error('Enter a valid public HTTPS website URL.');}if(url.protocol!=='https:'||!url.hostname.includes('.')||url.username||url.password||url.port)throw new Error('Only public HTTPS domains on port 443 are supported.');if(!$('#plan-authorized').checked)throw new Error('Confirm website ownership or written permission before testing.');if(!state.countryCodes.length||!state.devices.length)throw new Error('Select at least one country and device profile.');
- const analyticsEnabled=$('#ga-enabled').checked;const measurement=$('#ga-measurement').value.trim().toUpperCase();if(analyticsEnabled&&!/^G-[A-Z0-9]{5,20}$/.test(measurement))throw new Error('Enter a valid GA4 Measurement ID, such as G-XXXXXXXX.');
+function readPlan(){
+ const selected=$('#plan-site-select').value;
+ const site=state.store.sites.find(x=>x.hostname===selected&&x.status==='verified'&&x.authorized===true);
+ if(!site)throw new Error('Choose a DNS-verified website. Add and verify the domain in Websites first.');
+ let url;try{url=new URL($('#plan-url').value.trim()||site.origin+'/');}catch{throw new Error('Enter a valid HTTPS page on your verified website.');}
+ if(url.protocol!=='https:'||url.hostname!==site.hostname||url.username||url.password||url.port)
+  throw new Error('Test URL must use HTTPS and match the selected verified website host exactly.');
+ if(!state.countryCodes.length||!state.devices.length)throw new Error('Select at least one country and device profile.');
+ const analyticsEnabled=$('#ga-enabled').checked,measurement=$('#ga-measurement').value.trim().toUpperCase();
+ if(analyticsEnabled&&!/^G-[A-Z0-9]{5,20}$/.test(measurement))throw new Error('Enter a valid GA4 Measurement ID, such as G-XXXXXXXX.');
  const utm={};$$('[data-utm]').forEach(el=>{if(el.value.trim())utm[el.dataset.utm]=el.value.trim()});
- return {name:$('#plan-name').value.trim()||'Website QA test',targetUrl:url.toString(),authorized:true,verificationToken:$('#plan-token').value.trim(),countries:[...state.countryCodes],devices:[...state.devices],browser:$('#plan-browser').value,sessions:parseNumber('plan-sessions',1,25),concurrency:parseNumber('plan-concurrency',1,3),intervalSeconds:parseNumber('plan-interval',6,120),dwellSeconds:parseNumber('plan-dwell',8,60),maxPages:parseNumber('plan-depth',1,4),interactions:{scroll:$('#plan-scroll').checked,navigate:$('#plan-navigate').checked,hover:$('#plan-hover').checked,checkImages:$('#plan-images').checked},analytics:{enabled:analyticsEnabled,measurementId:analyticsEnabled?measurement:'',utm}};
+ return {name:$('#plan-name').value.trim()||'Website QA test',targetUrl:url.toString(),authorized:true,
+  verificationMethod:'dns_txt',verificationToken:site.verificationToken,
+  countries:[...state.countryCodes],devices:[...state.devices],browser:$('#plan-browser').value,
+  sessions:parseNumber('plan-sessions',1,25),concurrency:parseNumber('plan-concurrency',1,3),
+  intervalSeconds:parseNumber('plan-interval',6,120),dwellSeconds:parseNumber('plan-dwell',8,60),
+  maxPages:parseNumber('plan-depth',1,4),
+  interactions:{scroll:$('#plan-scroll').checked,navigate:$('#plan-navigate').checked,hover:$('#plan-hover').checked,checkImages:$('#plan-images').checked},
+  analytics:{enabled:analyticsEnabled,measurementId:analyticsEnabled?measurement:'',utm}};
 }
 function renderBrief(){const url=$('#plan-url').value.trim();$('#brief-name').textContent=$('#plan-name').value.trim()||'New test campaign';$('#brief-sessions').textContent=$('#plan-sessions').value||'0';$('#brief-url').textContent=(url?(()=>{try{return new URL(url).hostname}catch{return 'Invalid URL'}})():'Not set');$('#brief-countries').textContent=state.countryCodes.length+' profiles';$('#brief-devices').textContent=state.devices.length+' profiles';$('#brief-browser').textContent=($('#plan-browser').value||'chromium').replace(/^./,x=>x.toUpperCase());$('#brief-ga4').textContent=$('#ga-enabled').checked?($('#ga-measurement').value||'Not set'):'Disabled';$('#ga-fields').classList.toggle('enabled',$('#ga-enabled').checked);}
 function renderReview(){let cfg;try{cfg=readPlan();}catch(e){$('#review-summary').innerHTML='<div class="inline-result bad">'+encode(e.message)+'</div>';return;}
@@ -186,7 +201,8 @@ function renderReview(){let cfg;try{cfg=readPlan();}catch(e){$('#review-summary'
 function showResult(msg,ok=false){const el=$('#review-message');el.textContent=msg;el.className='inline-result '+(ok?'ok':'bad');}
 function download(name,obj){const blob=new Blob([JSON.stringify(obj,null,2)+'\n'],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function saveCampaign(){let plan=readPlan();const id=state.campaignId||newId(),now=new Date().toISOString();const old=state.store.campaigns.find(x=>x.id===id);const record={...plan,id,createdAt:old?.createdAt||now,updatedAt:now};state.store.campaigns=state.store.campaigns.filter(x=>x.id!==id);state.store.campaigns.push(record);state.campaignId=id;save();notify('Campaign saved to this browser.');return record;}
-function loadCampaign(id){const item=state.store.campaigns.find(x=>x.id===id);if(!item)return;state.campaignId=item.id;$('#plan-name').value=item.name;$('#plan-url').value=item.targetUrl;$('#plan-token').value=item.verificationToken;$('#plan-authorized').checked=item.authorized===true;state.countryCodes=[...item.countries];state.devices=[...item.devices];$('#plan-browser').value=item.browser;$('#plan-sessions').value=item.sessions;$('#plan-concurrency').value=item.concurrency;$('#plan-interval').value=item.intervalSeconds;$('#plan-dwell').value=item.dwellSeconds;$('#plan-depth').value=item.maxPages;$('#plan-scroll').checked=item.interactions.scroll;$('#plan-navigate').checked=item.interactions.navigate;$('#plan-hover').checked=item.interactions.hover;$('#plan-images').checked=item.interactions.checkImages;$('#ga-enabled').checked=item.analytics?.enabled===true;$('#ga-measurement').value=item.analytics?.measurementId||'';$$('[data-utm]').forEach(el=>el.value=item.analytics?.utm?.[el.dataset.utm]||'');renderCountryOptions();renderDeviceOptions();renderBrief();state.step=0;renderWizard();nav('builder');notify('Campaign loaded for editing.');}
+function loadCampaign(id){const item=state.store.campaigns.find(x=>x.id===id);if(!item)return;state.campaignId=item.id;$('#plan-name').value=item.name;$('#plan-url').value=item.targetUrl||'';renderSiteOptions();try{const host=item.siteHostname||new URL(item.targetUrl).hostname;
+ if(state.store.sites.some(s=>s.hostname===host&&s.status==='verified'))$('#plan-site-select').value=host;}catch{}renderSelectedSiteStatus();state.countryCodes=[...item.countries];state.devices=[...item.devices];$('#plan-browser').value=item.browser;$('#plan-sessions').value=item.sessions;$('#plan-concurrency').value=item.concurrency;$('#plan-interval').value=item.intervalSeconds;$('#plan-dwell').value=item.dwellSeconds;$('#plan-depth').value=item.maxPages;$('#plan-scroll').checked=item.interactions.scroll;$('#plan-navigate').checked=item.interactions.navigate;$('#plan-hover').checked=item.interactions.hover;$('#plan-images').checked=item.interactions.checkImages;$('#ga-enabled').checked=item.analytics?.enabled===true;$('#ga-measurement').value=item.analytics?.measurementId||'';$$('[data-utm]').forEach(el=>el.value=item.analytics?.utm?.[el.dataset.utm]||'');renderCountryOptions();renderDeviceOptions();renderBrief();state.step=0;renderWizard();nav('builder');notify('Campaign loaded for editing.');}
 function renderReports(){const reports=state.store.reports;$('#report-count').textContent=reports.length;const s=reports.reduce((t,r)=>t+(r.summary?.completed||0),0),passed=reports.reduce((t,r)=>t+(r.summary?.passed||0),0);$('#report-sessions').textContent=s;$('#report-passed').textContent=passed;const p95=reports.flatMap(r=>r.sessions?.flatMap(x=>x.pages?.map(p=>p.durationMs)||[])||[]).sort((a,b)=>a-b);$('#report-p95').textContent=p95.length?p95[Math.ceil(p95.length*.95)-1]+'ms':'—';$('#report-list').innerHTML=reports.length?'<div class="record-list">'+[...reports].reverse().map((r,i)=>'<div class="record-row"><span class="record-icon">⌁</span><div class="record-desc"><b>'+encode(r.plan?.name||'Imported test report')+'</b><small>'+encode(r.plan?.runId||'Unknown run')+' · '+encode(r.summary?.completed||0)+' sessions · '+encode(time(r.summary?.finishedAt))+'</small></div><span class="status '+((r.summary?.failed||0)>0?'failure':'success')+'">'+encode(r.summary?.passed||0)+' passed</span><button class="link-button" data-export-report="'+encode(r.plan?.runId||'')+'">Export ↓</button></div>').join('')+'</div>':emptyMarkup('Import a real JSON report downloaded from a completed Playwright worker run.');}
 
 function renderInspections(){
@@ -212,7 +228,8 @@ function saveDraft(){
  const numberOr=(id,fallback)=>{const n=Number($('#'+id).value);return Number.isFinite(n)?n:fallback;};
  const plan={
   id,name:$('#plan-name').value.trim()||'Untitled draft',targetUrl:$('#plan-url').value.trim(),
-  authorized:$('#plan-authorized').checked,verificationToken:$('#plan-token').value.trim(),
+  siteHostname:$('#plan-site-select').value,authorized:!!state.store.sites.find(s=>s.hostname===$('#plan-site-select').value&&s.status==='verified'),
+  verificationMethod:'dns_txt',verificationToken:state.store.sites.find(s=>s.hostname===$('#plan-site-select').value)?.verificationToken||'',
   countries:[...state.countryCodes],devices:[...state.devices],browser:$('#plan-browser').value,
   sessions:numberOr('plan-sessions',6),concurrency:numberOr('plan-concurrency',1),
   intervalSeconds:numberOr('plan-interval',8),dwellSeconds:numberOr('plan-dwell',15),
@@ -229,6 +246,9 @@ function saveDraft(){
 function renderIntegrations(){const h=state.health;const statuses=[['Vercel service',!!h?.ok],['API configured on server',!!h?.security?.authConfigured],['Workspace session authenticated',state.authenticated],['GitHub dispatch token',!!h?.security?.workflowConfigured],['GA4 Measurement Protocol',!!h?.security?.ga4Configured],['Browser worker','via GitHub Actions'],['DGX intelligence','optional, private']];$('#service-status').innerHTML=statuses.map(([name,ready])=>'<div class="service-line"><span>'+encode(name)+'</span><span class="status '+(ready===true?'success':ready===false?'failure':'neutral')+'">'+(ready===true?'Configured':ready===false?'Not configured':encode(ready))+'</span></div>').join('');$('#settings-token').value=state.apiKey;}
 function wireEvents(){document.addEventListener('click',e=>{
  const route=e.target.closest('[data-route]');if(route){nav(route.dataset.route);return;}
+ const siteRecheck=e.target.closest('[data-site-check]');if(siteRecheck){loadSiteSetup(siteRecheck.dataset.siteCheck);void verifySiteSetup();return;}
+ const siteUse=e.target.closest('[data-site-use]');if(siteUse){if(selectVerifiedSite(siteUse.dataset.siteUse)){nav('builder');state.step=0;renderWizard();}return;}
+ const siteRemove=e.target.closest('[data-site-remove]');if(siteRemove){if(confirm('Remove '+siteRemove.dataset.siteRemove+' from this browser? Existing campaigns will require a registered verified domain.')){state.store.sites=state.store.sites.filter(x=>x.hostname!==siteRemove.dataset.siteRemove);save();notify('Website removed locally.');}return;}
  const tab=e.target.closest('[data-wizard-tab]');if(tab){const n=Number(tab.dataset.wizardTab);if(n===4){try{readPlan();}catch(err){notify(err.message);return;}}state.step=n;renderWizard();return;}
  const country=e.target.closest('[data-country]');if(country){const code=country.dataset.country;if(state.countryCodes.includes(code)){if(state.countryCodes.length>1)state.countryCodes=state.countryCodes.filter(c=>c!==code);else notify('Select at least one country.');}else if(state.countryCodes.length<8)state.countryCodes.push(code);else notify('Maximum 8 countries.');renderCountryOptions();renderBrief();return;}
  const device=e.target.closest('[data-device]');if(device){const d=device.dataset.device;if(state.devices.includes(d)){if(state.devices.length>1)state.devices=state.devices.filter(x=>x!==d);else notify('Select at least one device.');}else if(state.devices.length<5)state.devices.push(d);else notify('Maximum 5 devices.');renderDeviceOptions();renderBrief();return;}
@@ -240,7 +260,16 @@ function wireEvents(){document.addEventListener('click',e=>{
  });
  $('#menu-open').onclick=()=>{$('#sidebar').classList.add('open');$('#mobile-backdrop').classList.add('open');};$('#mobile-backdrop').onclick=()=>{$('#sidebar').classList.remove('open');$('#mobile-backdrop').classList.remove('open');};
  $('#step-back').onclick=()=>{state.step=Math.max(0,state.step-1);renderWizard();};$('#step-next').onclick=()=>{if(state.step===3){try{readPlan();}catch(e){notify(e.message);return;}}state.step=Math.min(4,state.step+1);renderWizard();};
- $('#regen-token').onclick=()=>{$('#plan-token').value=freshToken();notify('New token generated. Update your site verification file.');};$('#copy-token').onclick=async()=>{try{await navigator.clipboard.writeText($('#plan-token').value);notify('Verification token copied.');}catch{notify('Copy manually from the token field.');}};
+ $('#site-create-new').onclick=()=>resetSiteSetup();
+ $('#site-domain').addEventListener('input',updateSiteProof);
+ $('#site-save').onclick=()=>{try{const site=saveSiteSetup();$('#site-verify-result').textContent='TXT setup saved for '+site.hostname+'. Add the record in your DNS provider, then click Verify TXT & detect GA4.';$('#site-verify-result').className='inline-result ok';}catch(e){$('#site-verify-result').textContent=e.message;$('#site-verify-result').className='inline-result bad';}};
+ $('#site-verify').onclick=()=>void verifySiteSetup();
+ for(const [button,field] of [['site-copy-name','site-dns-name'],['site-copy-value','site-dns-value']]){
+  $('#'+button).onclick=async()=>{try{await navigator.clipboard.writeText($('#'+field).value);notify('TXT record copied.');}catch{notify('Select and copy the text from the field manually.');}};
+ }
+ $('#plan-site-select').addEventListener('change',()=>{const host=$('#plan-site-select').value;
+  if(host)selectVerifiedSite(host);else renderSelectedSiteStatus();
+ });
  ['plan-name','plan-url','plan-sessions','plan-browser','ga-measurement','ga-enabled'].forEach(id=>$('#'+id).addEventListener('input',renderBrief));
  $('#wizard-save').onclick=()=>{try{saveDraft();}catch(e){notify(e.message);}};$('#review-save').onclick=()=>{try{saveCampaign();showResult('Campaign saved in this browser.',true);}catch(e){showResult(e.message);}};
  $('#review-export').onclick=()=>{try{const plan=readPlan();download('trafficgen-'+(plan.name.replace(/[^a-z0-9]+/gi,'-').slice(0,35).toLowerCase()||'plan')+'.json',plan);showResult('Downloaded a verified-target configuration. Actual authorization is rechecked at execution.',true);}catch(e){showResult(e.message);}};
@@ -281,12 +310,14 @@ function wireEvents(){document.addEventListener('click',e=>{
    const campaigns=data.campaigns.slice(-500);
    const reports=data.reports.slice(-100);
    const inspections=(Array.isArray(data.inspections)?data.inspections:[]).slice(-100);
+   const sites=(Array.isArray(data.sites)?data.sites:[]).slice(-100);
    if(campaigns.some(x=>!x||typeof x.id!=='string'||typeof x.name!=='string')||
       reports.some(x=>!x||typeof x.summary!=='object'||!x.plan)||
-      inspections.some(x=>!x||x.kind!=='site_inspection'||typeof x.runId!=='string'))
+      inspections.some(x=>!x||x.kind!=='site_inspection'||typeof x.runId!=='string')||
+      sites.some(x=>!x||typeof x.hostname!=='string'||typeof x.verificationToken!=='string'))
      throw new Error('Backup contains invalid records');
    if(!confirm('Restore '+campaigns.length+' campaigns, '+reports.length+' browser reports and '+inspections.length+' site inspections? Existing local data will be replaced.'))return;
-   state.store={campaigns,reports,inspections};state.campaignId=null;save();
+   state.store={campaigns,reports,inspections,sites};state.campaignId=null;save();
    notify('Workspace successfully restored from JSON.');
   }catch(err){notify('Restore failed: '+err.message);}
   finally{e.target.value='';}
@@ -295,6 +326,6 @@ function wireEvents(){document.addEventListener('click',e=>{
  $('#import-report').onclick=()=>$('#report-file').click();$('#report-file').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{if(file.size>3_000_000)throw Error('Report exceeds 3 MB');const data=JSON.parse(await file.text());if(typeof data!=='object'||!data||!Array.isArray(data.sessions)||typeof data.summary!=='object'||!data.plan?.runId)throw Error('Not a recognized TrafficGen worker report.');state.store.reports=state.store.reports.filter(r=>r.plan.runId!==data.plan.runId);state.store.reports.push(data);save();notify('Actual worker report imported.');}catch(err){notify('Report import failed: '+err.message);}finally{e.target.value='';}});
  $('#export-reports').onclick=()=>download('trafficgen-worker-reports.json',state.store.reports);
 }
-async function init(){renderUtm();$('#plan-token').value=freshToken();renderWizard();renderBrief();renderCounts();renderCampaigns();renderWebsites();renderRuns();renderReports();renderInspections();renderIntegrations();wireEvents();nav(location.hash.slice(1)||'overview');await Promise.all([checkHealth(),fetchSpec()]);if(state.apiKey){try{await http('/api/auth-check',{auth:true});state.authenticated=true;}catch{state.authenticated=false;state.apiKey='';sessionStorage.removeItem(TOKEN_KEY);}renderIntegrations();}}
+async function init(){renderUtm();updateSiteProof();renderSiteOptions();renderWizard();renderBrief();renderCounts();renderCampaigns();renderWebsites();renderSiteOptions();renderRuns();renderReports();renderInspections();renderIntegrations();wireEvents();nav(location.hash.slice(1)||'overview');await Promise.all([checkHealth(),fetchSpec()]);if(state.apiKey){try{await http('/api/auth-check',{auth:true});state.authenticated=true;}catch{state.authenticated=false;state.apiKey='';sessionStorage.removeItem(TOKEN_KEY);}renderIntegrations();}}
 window.addEventListener('hashchange',()=>nav(location.hash.slice(1)||'overview'));
 init().catch(e=>{console.error(e);notify('Dashboard initialization failed: '+e.message);});
