@@ -2,6 +2,7 @@ import { request as httpsRequest } from 'node:https';
 import { performance } from 'node:perf_hooks';
 import { parseTarget, safePath, error } from './plan.mjs';
 import { assertPublicDns, isPublicIp } from './ownership.mjs';
+import { detectGoogleTags } from './ga4-detect.mjs';
 
 const MAX_BYTES=512*1024;
 function decodeEntities(s=''){
@@ -62,7 +63,7 @@ export function inspectHtml(html,status=200,headers={}){
  if(!canonical)add('info','CANONICAL_NOT_FOUND','Canonical link was not detected; this is optional for some pages');
  if(/noindex/i.test(robots))add('high','NOINDEX','Robots meta directive includes noindex');
  if(!observations.headers.hsts)add('info','NO_HSTS','Strict-Transport-Security header not present');
- return {observations,findings};
+ return {observations,findings,ga4:detectGoogleTags(doc)};
 }
 export function pinnedFetchPage(target,ip,{timeoutMs=12000,maxBytes=MAX_BYTES}={}){
  if(!isPublicIp(ip))throw error('Only a verified public IP is allowed',403);
@@ -96,7 +97,7 @@ export async function inspectVerifiedPage(plan,{verify,dnsCheck=assertPublicDns,
  const target=parseTarget(plan.targetUrl);
  if(!safePath(target.href,target.origin))throw error('Unsafe or state-changing page path is not permitted',403);
  if(!verify)throw error('Site verification is required before inspection',403);
- const verification=await verify(plan.targetUrl,plan.verificationToken);
+ const verification=await verify(plan.targetUrl,plan.verificationToken,{method:plan.verificationMethod||'dns_txt'});
  if(!verification?.verified||verification.hostname!==target.hostname)throw error('Website ownership is not verified',403);
  const ips=await dnsCheck(target.hostname);
  if(!Array.isArray(ips)||ips.length===0||!ips.every(isPublicIp))throw error('No safe public address resolved for target',403);
