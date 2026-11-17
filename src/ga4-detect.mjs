@@ -1,19 +1,17 @@
 /**
- * Passive tag discovery on the initial HTML. No scripts are executed and
- * detected IDs are not evidence of GA4 event delivery.
+ * Passive discovery in machine-readable initial HTML only.
+ * This never executes JavaScript or proves GA4 event delivery.
  */
 export function detectGoogleTags(html){
  const source=String(html||'').slice(0,524288);
  const gaId=/\bG-[A-Z0-9]{5,20}\b/gi;
  const gtmId=/\bGTM-[A-Z0-9]{4,20}\b/gi;
- // Inspect machine-readable HTML locations, not visible page prose:
- // scripts (including embedded JSON), link/preload and meta tags, and
- // attributes on other elements. This avoids mislabeling an article that
- // merely mentions a GA4 ID as an installed analytics tag.
- const scriptBodies=[...source.matchAll(/<script\\b[^>]*>[\\s\\S]*?<\\/script\\s*>/gi)].map(m=>m[0]);
+ // Look at script contents and HTML tags (including preload links and
+ // data attributes). Ignore visible prose that might merely discuss GA4.
+ const scriptBodies=[...source.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi)].map(m=>m[0]);
  const htmlTags=[...source.matchAll(/<[^>]+>/g)].map(m=>m[0]);
- const normalized=[...scriptBodies,...htmlTags].join('\\n')
-  .replace(/\\\\u002[dD]/g,'-').replace(/&#(?:45|x2d);/gi,'-').replace(/%2d/gi,'-');
+ const normalized=[...scriptBodies,...htmlTags].join('\n')
+  .replace(/\\u002[dD]/g,'-').replace(/&#(?:45|x2d);/gi,'-').replace(/%2d/gi,'-');
  const measurementIds=[...new Set([...normalized.matchAll(gaId)].map(m=>m[0].toUpperCase()))].slice(0,20);
  const tagManagerIds=[...new Set([...normalized.matchAll(gtmId)].map(m=>m[0].toUpperCase()))].slice(0,20);
  const status=measurementIds.length?'measurement_id_detected':tagManagerIds.length?'gtm_container_only':'not_found_in_html';
