@@ -17,7 +17,7 @@ function guardedRoute(route,origin){
  if(u.protocol==='data:'||u.protocol==='blob:')return route.continue();
  if(u.protocol!=='https:')return route.abort();
  if(!['GET','HEAD'].includes(request.method()))return route.abort();
- if(BLOCKED_HOSTS.some(h=>matches(u.hostname,h)))return route.abort();
+ // Allow analytics tag libraries to load so the browser can emit observable events.\n // Collection endpoints remain blocked until an isolated QA destination is configured.\n if(u.hostname==='www.googletagmanager.com'&&request.resourceType()==='script')return route.continue();\n if(u.hostname==='va.vercel-scripts.com'&&request.resourceType()==='script')return route.continue();\n if(BLOCKED_HOSTS.some(h=>matches(u.hostname,h)))return route.abort();\n if(matches(u.hostname,'google-analytics.com')||matches(u.hostname,'vercel-insights.com'))return route.abort();
  if(request.isNavigationRequest()&&u.origin!==origin)return route.abort();
  if(u.origin===origin){
   if(!safePath(u.href,origin))return route.abort();
