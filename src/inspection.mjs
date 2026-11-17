@@ -79,7 +79,7 @@ export function pinnedFetchPage(target,ip,{timeoutMs=12000,maxBytes=MAX_BYTES}={
    const status=response.statusCode||0,headers=response.headers;
    response.on('data',chunk=>{
     if(done)return;total+=chunk.length;
-    if(total>maxBytes){done=true;response.destroy(error('Response exceeded 512 KiB limit',413));return;}
+    if(total>maxBytes){done=true;response.destroy();reject(error('Response exceeded 512 KiB limit',413));return;}
     buffers.push(chunk);
    });
    response.on('end',()=>{if(done)return;done=true;resolve({
