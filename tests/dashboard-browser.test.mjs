@@ -80,6 +80,8 @@ test('DNS website enrollment auto-detects GA4 and reuses verified sites across c
   await page.locator('#connect-api').click();
   await page.waitForFunction(()=>document.querySelector('#api-connection-result')?.textContent.includes('API authorized'));
 
+  // Return from Integrations to the website list before creating the test.
+  await page.locator('.nav-link[data-route="websites"]').click();
   // Campaign builder no longer asks for another token or authorization checkbox.
   await page.locator('#website-list [data-site-use]').click();
   assert.equal(await page.locator('#plan-site-select').inputValue(),'example.org');
