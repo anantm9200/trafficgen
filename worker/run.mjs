@@ -25,7 +25,7 @@ function guardedRoute(route,origin){
  if(STATIC_HOSTS.has(u.hostname)&&['stylesheet','font','image','script'].includes(request.resourceType()))return route.continue();
  return route.abort();
 }
-async function browse(page,plan,result){
+export async function browse(page,plan,result){
  const origin=new URL(plan.targetUrl).origin,visited=new Set();
  let current=toSyntheticUrl(plan.targetUrl,plan);
  for(let depth=0;depth<plan.maxPages;depth++){
