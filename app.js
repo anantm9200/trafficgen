@@ -94,6 +94,18 @@ function selectVerifiedSite(host,{resetUrl=true}={}){
  renderSelectedSiteStatus();renderBrief();
  return true;
 }
+function syncExistingSiteProof(){
+ let hostname;
+ try{hostname=normalizeSiteDomain($('#site-domain').value).hostname;}catch{updateSiteProof();return;}
+ const old=state.store.sites.find(site=>site.hostname===hostname);
+ if(old){
+  state.siteToken=old.verificationToken;
+  $('#site-authorized').checked=old.authorized===true;
+  $('#site-verify-result').textContent='Existing TXT setup restored for '+hostname+'. You can verify it without connecting an API key.';
+  $('#site-verify-result').className='inline-result';
+ }
+ updateSiteProof();
+}
 function updateSiteProof(){
  let host='your-domain.com';
  try{host=normalizeSiteDomain($('#site-domain').value).hostname}catch{}
@@ -131,7 +143,7 @@ async function verifySiteSetup(){
  $('#site-verify-result').textContent='Checking TXT record at _visitorlab.'+site.hostname+' and inspecting the site…';
  $('#site-verify-result').className='inline-result';
  try{
-  const response=await http('/api/site-verify',{method:'POST',auth:true,
+  const response=await http('/api/site-verify',{method:'POST',
    body:{targetUrl:site.origin+'/',verificationToken:site.verificationToken,authorized:true}});
   if(response?.verification?.verified!==true)throw new Error('Domain could not be verified.');
   site.status='verified';site.verifiedAt=response.verification.checkedAt;site.ga4=response.ga4||null;
@@ -148,8 +160,8 @@ async function verifySiteSetup(){
   $('#site-verify-result').className='inline-result ok';
  }catch(e){
   site.status='pending';site.verifiedAt=null;site.ga4=null;save();
-  $('#site-verify-result').textContent='Verification pending: '+e.message+
-    '. Save the DNS setup and retry after publishing the TXT record. Connect the API key under Integrations if needed.';
+  $('#site-verify-result').textContent='DNS verification failed: '+e.message+
+    '. The record name and value shown above must match exactly. If just added, check your DNS provider and retry after propagation. No API key is needed for this check.';
   $('#site-verify-result').className='inline-result bad';
  }finally{button.disabled=false;button.textContent='Verify TXT & detect GA4 ↗';}
 }
@@ -262,6 +274,7 @@ function wireEvents(){document.addEventListener('click',e=>{
  $('#step-back').onclick=()=>{state.step=Math.max(0,state.step-1);renderWizard();};$('#step-next').onclick=()=>{if(state.step===3){try{readPlan();}catch(e){notify(e.message);return;}}state.step=Math.min(4,state.step+1);renderWizard();};
  $('#site-create-new').onclick=()=>resetSiteSetup();
  $('#site-domain').addEventListener('input',updateSiteProof);
+ $('#site-domain').addEventListener('change',syncExistingSiteProof);
  $('#site-save').onclick=()=>{try{const site=saveSiteSetup();$('#site-verify-result').textContent='TXT setup saved for '+site.hostname+'. Add the record in your DNS provider, then click Verify TXT & detect GA4.';$('#site-verify-result').className='inline-result ok';}catch(e){$('#site-verify-result').textContent=e.message;$('#site-verify-result').className='inline-result bad';}};
  $('#site-verify').onclick=()=>void verifySiteSetup();
  for(const [button,field] of [['site-copy-name','site-dns-name'],['site-copy-value','site-dns-value']]){
