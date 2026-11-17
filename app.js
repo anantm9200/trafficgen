@@ -88,7 +88,7 @@ function renderInspections(){
 function saveDraft(){
  const now=new Date().toISOString(),id=state.campaignId||newId();
  const original=state.store.campaigns.find(c=>c.id===id);
- const utm={};$('[data-utm]').forEach(el=>{if(el.value.trim())utm[el.dataset.utm]=el.value.trim()});
+ const utm={};Array.from(document.querySelectorAll('[data-utm]')).forEach(el=>{if(el.value.trim())utm[el.dataset.utm]=el.value.trim()});
  const numberOr=(id,fallback)=>{const n=Number($('#'+id).value);return Number.isFinite(n)?n:fallback;};
  const plan={
   id,name:$('#plan-name').value.trim()||'Untitled draft',targetUrl:$('#plan-url').value.trim(),
