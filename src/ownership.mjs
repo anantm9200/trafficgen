@@ -1,36 +1,72 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { request as httpsRequest } from 'node:https';
 import { parseTarget, error } from './plan.mjs';
 
 export function isPublicIp(ip){
- const kind=isIP(ip);
- if(kind===4){
-  const n=ip.split('.').map(Number),[a,b,c]=n;
-  return !(a===0||a===10||a===127||a>=224||a===169&&b===254||a===172&&b>=16&&b<=31||a===192&&b===168||a===100&&b>=64&&b<=127||a===192&&b===0||a===192&&b===0&&c===0||a===198&&(b===18||b===19)||a===198&&b===51&&c===100||a===203&&b===0&&c===113);
+ const family=isIP(ip);
+ if(family===4){
+  const [a,b,c]=ip.split('.').map(Number);
+  return !(a===0||a===10||a===127||a>=224||a===169&&b===254||a===172&&b>=16&&b<=31||
+    a===192&&b===168||a===100&&b>=64&&b<=127||
+    a===192&&b===0||a===198&&(b===18||b===19)||
+    a===198&&b===51&&c===100||a===203&&b===0&&c===113);
  }
- // Only global IPv6 unicast (2000::/3); reject local, IPv4-mapped and link-local.
- if(kind===6)return /^[23][0-9a-f]{3}:/i.test(ip);
+ // Accept only global IPv6 unicast, not unique local, mapped IPv4, multicast or link local.
+ if(family===6)return /^[23][0-9a-f]{3}:/i.test(ip);
  return false;
 }
 export async function assertPublicDns(host){
  const addresses=await lookup(host,{all:true,verbatim:true});
- if(!addresses.length||addresses.some(x=>!isPublicIp(x.address)))throw error('Hostname did not resolve exclusively to public IP addresses',403);
+ if(!addresses.length||addresses.some(x=>!isPublicIp(x.address)))
+   throw error('Hostname did not resolve exclusively to public IP addresses',403);
  return addresses.map(x=>x.address);
 }
-export async function verifyOwnership(rawUrl,token,{fetchImpl=fetch,dnsCheck=assertPublicDns}={}){
+function pinnedProof(target,ip){
+ return new Promise((resolve,reject)=>{
+  const req=httpsRequest({
+   protocol:'https:',hostname:target.hostname,port:443,
+   path:'/.well-known/visitorlab-verify.txt',method:'GET',
+   headers:{'accept':'text/plain','user-agent':'VisitorLab-OwnerVerification/1.0'},
+   lookup:(_hostname,_options,cb)=>cb(null,ip,isIP(ip)),
+   timeout:7000,maxHeaderSize:4096,rejectUnauthorized:true
+  },res=>{
+   // Explicitly refuse redirects and unbounded responses.
+   if(res.statusCode!==200){res.destroy();return reject(error('Owner verification file must return HTTP 200 without redirect',403));}
+   const claimed=Number(res.headers['content-length']||0);
+   if(claimed>512){res.destroy();return reject(error('Owner verification file too large',403));}
+   let total=0;const chunks=[];
+   res.on('data',chunk=>{
+    total+=chunk.length;
+    if(total>512){res.destroy(error('Owner verification file too large',403));return;}
+    chunks.push(chunk);
+   });
+   res.on('end',()=>resolve(Buffer.concat(chunks).toString('utf8')));
+   res.on('error',reject);
+  });
+  req.on('timeout',()=>req.destroy(error('Ownership proof timeout',408)));
+  req.on('error',reject);req.end();
+ });
+}
+export async function verifyOwnership(rawUrl,token,{fetchImpl=null,dnsCheck=assertPublicDns}={}){
  const target=parseTarget(rawUrl);
  if(!/^tg_[A-Za-z0-9_-]{16,100}$/.test(token??''))throw error('Invalid verification token');
- await dnsCheck(target.hostname);
- const proof=new URL('/.well-known/visitorlab-verify.txt',target.origin);
- const response=await fetchImpl(proof.toString(),{
-  method:'GET',redirect:'manual',
-  headers:{'accept':'text/plain','user-agent':'VisitorLab-OwnerVerification/1.0'},
-  signal:AbortSignal.timeout(7000)
- });
- if(response.status!==200)throw error('Owner verification file must return HTTP 200 (without redirects)',403);
- const size=Number(response.headers.get('content-length')||0);
- if(size>512)throw error('Owner verification file too large',403);
- const text=await response.text();
- if(text.length>512||text.trim()!==token)throw error('Owner verification token did not match',403);
+ const ips=await dnsCheck(target.hostname);
+ // Tests may inject a mock fetchImpl. Normal execution pins HTTPS to the validated IP.
+ let content;
+ if(fetchImpl){
+  const proof=new URL('/.well-known/visitorlab-verify.txt',target.origin);
+  const response=await fetchImpl(proof.toString(),{
+   method:'GET',redirect:'manual',headers:{'accept':'text/plain','user-agent':'VisitorLab-OwnerVerification/1.0'},
+   signal:AbortSignal.timeout(7000)
+  });
+  if(response.status!==200)throw error('Owner verification file must return HTTP 200 (without redirects)',403);
+  if(Number(response.headers.get('content-length')||0)>512)throw error('Owner verification file too large',403);
+  content=await response.text();
+ }else{
+  if(!Array.isArray(ips)||!ips.length)throw error('No public DNS records found',403);
+  content=await pinnedProof(target,ips[0]);
+ }
+ if(content.length>512||content.trim()!==token)throw error('Owner verification token did not match',403);
  return {verified:true,hostname:target.hostname,checkedAt:new Date().toISOString()};
 }
