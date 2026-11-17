@@ -1,23 +1,46 @@
-import {Script} from 'node:vm';
-const urls=['https://trafficgen.vercel.app','https://trafficgen-ua6y.vercel.app'];
-let failed=false;
-async function get(url){const r=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(15000)});return{status:r.status,body:await r.text(),type:r.headers.get('content-type')};}
-for(const base of urls){try{
- const home=await get(base+'/');
- console.log('HOMEPAGE',base,home.status,home.type);
- if(home.status===200){
-  if(!home.body.includes('id="view-overview"')||!home.body.includes('/app.js')){console.error('Dashboard markup missing');failed=true;}
-  const script=await get(base+'/app.js');
-  if(script.status!==200){console.error('Frontend script not served',script.status);failed=true;}
-  else try{new Script(script.body,{filename:'app.js'});console.log('JS SYNTAX PASS')}catch(e){console.error('JS SYNTAX FAIL',e.message);failed=true;}
-  const h=await get(base+'/api/health');
-  if(h.status!==200||!JSON.parse(h.body).ok){console.error('API health failure');failed=true;}
- } else if([401,403,307,308].includes(home.status)){
-  console.warn('Protected deployment - automated public probing limited by Vercel Authentication');
- }else{
-  console.warn('Unexpected host response',base,home.status);
-  if(base===urls[0])failed=true;
- }
-}catch(e){console.warn('Probe request failed:',base,String(e.message));if(base===urls[0])failed=true;}
+import { Script } from 'node:vm';
+
+const hosts=['https://trafficgen.vercel.app','https://trafficgen-ua6y.vercel.app'];
+const requiredControls=['view-overview','view-builder','view-campaigns','view-runs','view-analytics',
+ 'view-websites','view-devices','view-settings','review-verify','review-audit',
+ 'review-dispatch','inspection-list','restore-workspace'];
+const results=[];
+async function request(url){
+ const started=Date.now();
+ const response=await fetch(url,{
+  redirect:'manual',headers:{'user-agent':'TrafficGen-AuthorizedHourlyHealth/1.0'},
+  signal:AbortSignal.timeout(15000)
+ });
+ const text=await response.text();
+ return {status:response.status,text,type:response.headers.get('content-type')||'',
+  durationMs:Date.now()-started};
 }
-if(failed)process.exitCode=1;
+for(const host of hosts){
+ const record={host,checks:[],ok:true};
+ const check=(name,pass,detail='')=>{record.checks.push({name,pass,detail});if(!pass)record.ok=false;};
+ try{
+  const [html,css,js,health,spec,protectedEndpoint]=await Promise.all([
+   request(host+'/'),request(host+'/styles.css'),request(host+'/app.js'),
+   request(host+'/api/health'),request(host+'/api/spec'),
+   request(host+'/api/auth-check')
+  ]);
+  check('homepage',html.status===200&&html.type.includes('text/html')&&html.text.includes('src="/app.js"'),String(html.status));
+  check('all critical dashboard controls',requiredControls.every(id=>html.text.includes('id="'+id+'"')),
+   requiredControls.filter(id=>!html.text.includes('id="'+id+'"')).join(','));
+  check('CSS asset',css.status===200&&css.type.includes('text/css')&&css.text.length>15000,String(css.status));
+  check('JavaScript asset',js.status===200&&js.type.includes('javascript')&&js.text.length>20000,String(js.status));
+  let syntax=false;
+  try{new Script(js.text,{filename:'app.js'});syntax=true;}catch(e){check('JavaScript syntax',false,String(e.message));}
+  if(syntax)check('JavaScript syntax',true);
+  let h=null,api=null;
+  try{h=JSON.parse(health.text);}catch{}
+  try{api=JSON.parse(spec.text);}catch{}
+  check('health API',health.status===200&&h?.ok===true&&h?.security?.authConfigured===true,String(health.status));
+  check('profile/specification API',spec.status===200&&api?.ok===true&&Array.isArray(api?.browsers)&&api?.inspection?.endpoint==='POST /api/inspect',String(spec.status));
+  check('protected endpoint denies anonymous use',protectedEndpoint.status===401,String(protectedEndpoint.status));
+  record.latencyMs=Math.round((html.durationMs+css.durationMs+js.durationMs+health.durationMs+spec.durationMs)/5);
+ }catch(e){check('network',false,String(e.message));}
+ results.push(record);
+ console.log(JSON.stringify(record,null,2));
+}
+if(results.some(r=>!r.ok))process.exitCode=1;

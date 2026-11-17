@@ -7,7 +7,7 @@ export default function handler(req,res){
   countries:COUNTRIES,devices:DEVICES,browsers:['chromium','firefox','webkit'],
   ga4:{measurementIdFormat:'G-XXXXXXXX',utmKeys:UTM_KEYS,analyticsSecret:'GA4_API_SECRET in server/worker environment',eventName:'visitorlab_synthetic_visit',
   warning:'Synthetic event metadata, not real acquisition/source-IP attribution'},
-  verifyFile:'https://YOUR_DOMAIN/.well-known/visitorlab-verify.txt',example:{
+  verifyFile:'https://YOUR_DOMAIN/.well-known/visitorlab-verify.txt',inspection:{endpoint:'POST /api/inspect',requiresAuthentication:true,requiresOwnershipProof:true,mode:'one tagged HTTPS GET of verified site, no browser or simulated country-origin IP'},example:{
    targetUrl:'https://YOUR_DOMAIN/',authorized:true,verificationToken:'tg_replace-with-a-random-unique-string',
    sessions:6,concurrency:1,intervalSeconds:8,dwellSeconds:15,maxPages:2,countries:['AE','IN','US'],
    devices:['desktop','iphone','android'],browser:'chromium',

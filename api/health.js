@@ -5,5 +5,5 @@ export default function handler(req,res){
   mode:'authorized-synthetic-testing',controlPlane:'vercel',browserExecution:'github-actions',
   security:{authConfigured:Boolean(process.env.TG_API_KEY),workflowConfigured:Boolean(process.env.GITHUB_WORKFLOW_TOKEN),
   ga4Configured:Boolean(process.env.GA4_MEASUREMENT_ID&&process.env.GA4_API_SECRET)},
-  routes:['GET /api/auth-check','POST /api/validate','POST /api/dispatch','GET /api/runs','POST /api/ga4-test','GET /api/spec']});
+  routes:['GET /api/auth-check','POST /api/validate','POST /api/inspect','POST /api/dispatch','GET /api/runs','POST /api/ga4-test','GET /api/spec']});
 }
