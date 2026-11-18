@@ -338,7 +338,21 @@ function wireEvents(){document.addEventListener('click',e=>{
   finally{button.disabled=false;button.textContent='Run live site inspection ↗';}
  };
  $('#review-dispatch').onclick=async()=>{let plan;try{plan=readPlan();}catch(e){showResult(e.message);return;}if(!confirm('Dispatch '+plan.sessions+' identified synthetic sessions to '+new URL(plan.targetUrl).hostname+'?'))return;showResult('Validating and dispatching test…',true);try{const res=await http('/api/dgx-jobs',{method:'POST',body:{...plan,concurrency:1},auth:true,timeoutMs:25000});saveCampaign();showResult('Queued DGX job '+res.job.id+'. Open Run monitor to follow execution.',true);}catch(e){showResult('Dispatch unavailable: '+e.message+'\nDGX jobs require a verified website, API authorization, concurrency 1, and analytics observation mode. Check Run monitor after a successful dispatch.');}};
- $('#refresh-runs').onclick=()=>void refreshRuns();$('#refresh-health').onclick=()=>void checkHealth();
+ $('#refresh-runs').onclick=()=>void refreshRuns();$('#refresh-health').onclick=async()=>{
+  const button=$('#refresh-health');let output=$('#live-service-result');
+  if(!output){output=document.createElement('div');output.id='live-service-result';output.className='inline-result';button.insertAdjacentElement('afterend',output);}
+  button.disabled=true;button.textContent='Checking live service…';output.textContent='Checking Vercel API…';
+  try{
+   await checkHealth();
+   if(!state.health?.ok)throw new Error('Vercel API health check failed');
+   if(!state.authenticated){output.textContent='Vercel API online. Connect your API key in Integrations to check the DGX worker.';output.className='inline-result';return;}
+   output.textContent='Vercel API online. Checking DGX connection…';
+   const status=await http('/api/dgx-status',{auth:true});
+   output.textContent='Vercel API online. DGX response: '+(status?.ok===true?'online':'received')+'. This does not confirm a browser job completed.';
+   output.className='inline-result ok';
+  }catch(e){output.textContent='Live service check failed: '+e.message;output.className='inline-result bad';}
+  finally{button.disabled=false;button.textContent='Check live service ↻';}
+ };
  $('#connect-api').onclick=async()=>{const key=$('#settings-token').value.trim();if(!key||key.length<24){$('#api-connection-result').textContent='Enter the 24+ character API key from Vercel.';return;}state.apiKey=key;sessionStorage.setItem(TOKEN_KEY,key);try{const ready=await http('/api/auth-check',{auth:true});$('#api-connection-result').textContent='API authorized. DGX dispatch uses the authenticated job API; check Run monitor for queue connectivity.';$('#api-connection-result').className='inline-result ok';state.authenticated=true;renderIntegrations();if(ready.integrations.githubWorkflow)await refreshRuns();else{state.runs=null;renderRuns();}}catch(e){sessionStorage.removeItem(TOKEN_KEY);state.apiKey='';state.authenticated=false;renderIntegrations();$('#api-connection-result').textContent='API authorization failed: '+e.message;$('#api-connection-result').className='inline-result bad';}notify('Workspace connection checked.');};
  $('#disconnect-api').onclick=()=>{state.apiKey='';state.authenticated=false;sessionStorage.removeItem(TOKEN_KEY);$('#settings-token').value='';state.runs=null;renderRuns();$('#api-connection-result').textContent='Key cleared from this tab.';notify('Disconnected.');};
  $('#toggle-token').onclick=()=>{const input=$('#settings-token');input.type=input.type==='password'?'text':'password';$('#toggle-token').textContent=input.type==='password'?'Show':'Hide';};
