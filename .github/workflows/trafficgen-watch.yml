@@ -1,0 +1,40 @@
+name: TrafficGen 30-minute quality watch
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  quality-watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run unit and regression tests
+        run: npm test
+      - name: Check source syntax
+        run: |
+          find src api worker -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+          node --check app.js
+      - name: Probe production dashboard health (read only)
+        run: |
+          node --input-type=module <<'NODE'
+          const url='https://trafficgen.vercel.app/';
+          const res=await fetch(url,{signal:AbortSignal.timeout(12000),redirect:'manual'});
+          console.log(JSON.stringify({url,status:res.status,contentType:res.headers.get('content-type')}));
+          if(res.status!==200)process.exitCode=1;
+          NODE
+      - name: Write summary
+        if: always()
+        run: |
+          echo '### TrafficGen quality watch' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Tests, syntax checks and read-only dashboard health probe completed. Check individual steps for results.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This workflow never creates browser sessions or analytics events.' >> "$GITHUB_STEP_SUMMARY"

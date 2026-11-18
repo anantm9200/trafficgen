@@ -4,6 +4,7 @@ import {performance} from 'node:perf_hooks';
 import {normalizePlan,COUNTRIES,DEVICES,safePath,toSyntheticUrl,publicPlan,msSummary} from '../src/plan.mjs';
 import {verifyOwnership} from '../src/ownership.mjs';
 import {submitGA4} from '../src/ga4.mjs';
+import {classifyAnalyticsRequest,summarizeAnalyticsRequests} from '../src/analytics-observe.mjs';
 import {analyzeWithDGX} from '../src/intelligence.mjs';
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -16,7 +17,7 @@ function guardedRoute(route,origin){
  if(u.protocol==='data:'||u.protocol==='blob:')return route.continue();
  if(u.protocol!=='https:')return route.abort();
  if(!['GET','HEAD'].includes(request.method()))return route.abort();
- if(BLOCKED_HOSTS.some(h=>matches(u.hostname,h)))return route.abort();
+ // Allow analytics tag libraries to load so the browser can emit observable events.\n // Collection endpoints remain blocked until an isolated QA destination is configured.\n if(u.hostname==='www.googletagmanager.com'&&request.resourceType()==='script')return route.continue();\n if(u.hostname==='va.vercel-scripts.com'&&request.resourceType()==='script')return route.continue();\n if(BLOCKED_HOSTS.some(h=>matches(u.hostname,h)))return route.abort();\n if(matches(u.hostname,'google-analytics.com')||matches(u.hostname,'vercel-insights.com'))return route.abort();
  if(request.isNavigationRequest()&&u.origin!==origin)return route.abort();
  if(u.origin===origin){
   if(!safePath(u.href,origin))return route.abort();
@@ -69,7 +70,7 @@ async function runOne(index,plan,browser,playwright,shared){
  const preset=playwright.devices[DEVICES[device].preset]||{};
  const result={index:index+1,countryCode,countryMode:'locale_timezone_geolocation_only',device,
   browser:plan.browser,startedAt:new Date().toISOString(),pages:[],jsErrors:[],httpErrors:[],requestFailures:[],
-  brokenImages:0,ok:false,error:null,ga4:{sent:false,reason:'not attempted'}};
+  brokenImages:0,ok:false,error:null,ga4:{sent:false,reason:'not attempted'},analyticsRequests:[],analyticsSummary:null};
  let context;
  const started=performance.now();
  try{
@@ -79,6 +80,7 @@ async function runOne(index,plan,browser,playwright,shared){
   const origin=new URL(plan.targetUrl).origin;
   await context.route('**/*',route=>guardedRoute(route,origin));
   const page=await context.newPage();
+  page.on('request',request=>{const event=classifyAnalyticsRequest(request.url());if(event&&result.analyticsRequests.length<100)result.analyticsRequests.push(event);});
   page.on('pageerror',e=>{if(result.jsErrors.length<15)result.jsErrors.push(String(e.message).slice(0,300));});
   page.on('response',r=>{if(r.url().startsWith(origin+'/')&&r.status()>=400){
    result.httpErrors.push({status:r.status(),url:r.url().slice(0,300)});
@@ -90,6 +92,7 @@ async function runOne(index,plan,browser,playwright,shared){
   result.ok=!result.error&&result.pages.length>0&&result.pages.every(p=>p.status>=200&&p.status<400);
  }catch(e){result.error=String(e?.message||e).slice(0,500);}
  finally{
+  result.analyticsSummary=summarizeAnalyticsRequests(result.analyticsRequests);
   result.durationMs=Math.round(performance.now()-started);
   result.endedAt=new Date().toISOString();
   if(context)await context.close().catch(()=>{});
@@ -131,6 +134,7 @@ export async function execute(planRaw,{launchBrowsers=true}={}){
   javaScriptErrors:completed.reduce((n,x)=>n+x.jsErrors.length,0),
   httpErrors:completed.reduce((n,x)=>n+x.httpErrors.length,0),
   brokenImages:completed.reduce((n,x)=>n+x.brokenImages,0),
+  analyticsRequestsObserved:completed.reduce((n,x)=>n+x.analyticsRequests.length,0),
   timingsMs:msSummary(timings),stoppedEarly:shared.abort,finishedAt:new Date().toISOString()};
  return {plan:publicPlan(plan),originIPCountry:'not_asserted',startedAt,summary,sessions:completed};
 }
