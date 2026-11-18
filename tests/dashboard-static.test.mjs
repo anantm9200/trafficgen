@@ -12,7 +12,7 @@ test('Dashboard has all primary views and no embedded tokens',()=>{
 });
 test('Static frontend links to real browser scripts',()=>{
  assert.match(html, /href="\/styles.css"/);
- assert.match(html, /src="\/app.js"/);
+ assert.match(html, /src="\/app\.js(?:\?[^"]+)?"/);
  assert.ok(css.length>15000);
  assert.ok(js.length>15000);
  for(const route of ['/api/health','/api/spec','/api/validate','/api/dgx-jobs','/api/dgx-job'])
