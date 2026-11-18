@@ -6,6 +6,7 @@ import {spawn} from 'node:child_process';
 import {resolve} from 'node:path';
 import {normalizePlan,publicPlan} from '../src/plan.mjs';
 import {verifyOwnership} from '../src/ownership.mjs';
+import {queueMetrics} from '../src/worker-metrics.mjs';
 const port=Number(process.env.TG_WORKER_PORT||18743);
 if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid worker port');
 const dbPath=resolve(process.env.TG_QUEUE_DB||'./.data/trafficgen.sqlite');
@@ -57,7 +58,7 @@ async function pump(){
 const server=http.createServer(async(req,res)=>{
  try{
   const url=new URL(req.url,'http://localhost');
-  if(req.method==='GET'&&url.pathname==='/health')return send(res,200,{ok:true,service:'trafficgen-dgx-worker',mode:'job-queue',uptimeSeconds:Math.floor((Date.now()-started)/1000),activeJob:active?.id||null});
+  if(req.method==='GET'&&url.pathname==='/health')return send(res,200,{ok:true,service:'trafficgen-dgx-worker',mode:'job-queue',uptimeSeconds:Math.floor((Date.now()-started)/1000),activeJob:active?.id||null,metrics:queueMetrics(db.prepare('SELECT status,created_at,started_at,finished_at FROM jobs ORDER BY created_at DESC LIMIT 100').all())});
   if(!authorized(req))return send(res,401,{ok:false,error:'Unauthorized'});
   if(req.method==='GET'&&url.pathname==='/jobs'){
    return send(res,200,{ok:true,jobs:db.prepare("SELECT * FROM jobs ORDER BY created_at DESC LIMIT 30").all().map(publicJob)});
