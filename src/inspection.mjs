@@ -101,7 +101,21 @@ export async function inspectVerifiedPage(plan,{verify,dnsCheck=assertPublicDns,
  if(!verification?.verified||verification.hostname!==target.hostname)throw error('Website ownership is not verified',403);
  const ips=await dnsCheck(target.hostname);
  if(!Array.isArray(ips)||ips.length===0||!ips.every(isPublicIp))throw error('No safe public address resolved for target',403);
- const response=await fetchPage(target,ips[0]);
+ let response;const failures=[];
+ for(const ip of ips.slice(0,4)){
+  try{response=await fetchPage(target,ip);break;}
+  catch(e){
+   const code=String(e?.code||'');
+   failures.push(code==='ETIMEDOUT'||e?.status===408?'timeout':
+    ['ECONNRESET','ECONNREFUSED','EHOSTUNREACH','ENETUNREACH'].includes(code)?'connection_failed':
+    code.startsWith('ERR_TLS')||code.startsWith('CERT_')?'tls_failed':
+    e?.status===413?'response_too_large':'request_failed');
+  }
+ }
+ if(!response){
+  const reason=failures.every(x=>x==='timeout')?'timeout':failures.includes('tls_failed')?'tls_failed':failures.includes('connection_failed')?'connection_failed':failures.includes('response_too_large')?'response_too_large':'request_failed';
+  throw error('Website inspection could not fetch the verified HTTPS page ('+reason+'). Check the canonical URL, TLS certificate, firewall and server availability.',reason==='response_too_large'?413:502);
+ }
  const contentType=String(response.headers['content-type']||'').toLowerCase();
  if(response.status>=300&&response.status<400)throw error('Site returned a redirect; supply the final canonical HTTPS URL',400);
  if(!contentType.includes('text/html')&&!contentType.includes('application/xhtml+xml'))throw error('Target did not return HTML ('+contentType.slice(0,100)+')',400);
