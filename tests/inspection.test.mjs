@@ -52,3 +52,31 @@ test('Redirects and non-HTML responses are never followed',async()=>{
  await assert.rejects(()=>inspectVerifiedPage(plan,{...opts,fetchPage:async()=>({status:302,headers:{location:'https://evil.example'},body:'',durationMs:1})}),/redirect/);
  await assert.rejects(()=>inspectVerifiedPage(plan,{...opts,fetchPage:async()=>({status:200,headers:{'content-type':'application/octet-stream'},body:'',durationMs:1})}),/HTML/);
 });
+
+test('Retries another verified public IP after a transport failure',async()=>{
+ const attempts=[];
+ const output=await inspectVerifiedPage(plan,{
+  verify:async()=>({verified:true,hostname:'www.example.org'}),
+  dnsCheck:async()=>['8.8.8.8','1.1.1.1'],
+  fetchPage:async(_url,ip)=>{
+   attempts.push(ip);
+   if(ip==='8.8.8.8')throw Object.assign(new Error('Connection reset'),{code:'ECONNRESET'});
+   return {status:200,headers:{'content-type':'text/html'},body:fixture,bytes:fixture.length,durationMs:12};
+  }
+ });
+ assert.deepEqual(attempts,['8.8.8.8','1.1.1.1']);
+ assert.equal(output.ok,true);
+});
+test('Reports a safe actionable category after all verified IPs fail',async()=>{
+ const opts={
+  verify:async()=>({verified:true,hostname:'www.example.org'}),
+  dnsCheck:async()=>['8.8.8.8','1.1.1.1'],
+  fetchPage:async()=>{throw Object.assign(new Error('private transport details'),{code:'ETIMEDOUT'});}
+ };
+ await assert.rejects(()=>inspectVerifiedPage(plan,opts),e=>{
+  assert.equal(e.status,424);
+  assert.match(e.message,/timeout/);
+  assert.doesNotMatch(e.message,/private transport details/);
+  return true;
+ });
+});
