@@ -58,3 +58,19 @@ TrafficGen is an authorized, synthetic browser and analytics QA platform. Synthe
 - Production GA4 audience inflation or anti-bot evasion.
 - Advertising click/impression simulation or fake conversion/revenue generation.
 - Copying another product's proprietary code, branding, or exact visual assets.
+
+## Performance and efficiency targets (engineering objectives, not measured results)
+
+- **Dispatch latency:** p95 under 2 seconds from authenticated API acceptance to durable queue acknowledgement, excluding WAN outages.
+- **Queue pickup:** p95 under 5 seconds while worker is idle; expose queue wait time separately from browser startup.
+- **Browser reuse:** prefer a warm Chromium process with isolated per-job contexts, when proven safe and memory-bounded. Do not reuse cookies or storage between jobs.
+- **Concurrency:** start at one; benchmark CPU, RAM and site impact before raising. Apply strict per-domain rate limits and global resource budgets.
+- **Job lifecycle:** heartbeat every 15 seconds; mark stalled jobs and apply bounded retry only to idempotent operations; support cancellation.
+- **Report efficiency:** stream compact structured events; cap retained request evidence, avoid storing sensitive URL parameters, compress historical artifacts and enforce retention.
+- **Operational observability:** report p50/p95 queue wait, browser startup, navigation time, completion, failure cause, memory high-water and worker restarts.
+- **Analytics QA:** batch read-side reconciliation where API quotas permit; avoid unnecessary polling and never claim event processing before it is observed in the isolated QA property.
+- **Cost:** default to existing DGX/Vercel/GitHub resources and zero paid services; monitor egress and GitHub Actions minutes.
+- **Security:** bounded same-origin journeys, explicit verified-site allowlist, outbound restrictions, anti-SSRF and isolated QA analytics destination.
+
+### Release performance gate
+Capture a baseline from 20 authorized QA journeys on a controlled website, then compare identical workloads after each optimization. No performance claim is accepted without measured p50/p95 timings, success rates and resource use. No bulk synthetic sessions to production analytics.
