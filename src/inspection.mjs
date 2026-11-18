@@ -114,7 +114,7 @@ export async function inspectVerifiedPage(plan,{verify,dnsCheck=assertPublicDns,
  }
  if(!response){
   const reason=failures.every(x=>x==='timeout')?'timeout':failures.includes('tls_failed')?'tls_failed':failures.includes('connection_failed')?'connection_failed':failures.includes('response_too_large')?'response_too_large':'request_failed';
-  throw error('Website inspection could not fetch the verified HTTPS page ('+reason+'). Check the canonical URL, TLS certificate, firewall and server availability.',reason==='response_too_large'?413:502);
+  throw error('Website inspection could not fetch the verified HTTPS page ('+reason+'). Check the canonical URL, TLS certificate, firewall and server availability.',reason==='response_too_large'?413:424);
  }
  const contentType=String(response.headers['content-type']||'').toLowerCase();
  if(response.status>=300&&response.status<400)throw error('Site returned a redirect; supply the final canonical HTTPS URL',400);
