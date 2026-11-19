@@ -6,6 +6,7 @@ import {verifyOwnership} from '../src/ownership.mjs';
 import {submitGA4} from '../src/ga4.mjs';
 import {classifyAnalyticsRequest,summarizeAnalyticsRequests} from '../src/analytics-observe.mjs';
 import {decideBrowserRequest} from '../src/browser-policy.mjs';
+import {safeReportUrl,safeReportMessage} from '../src/report-safety.mjs';
 import {analyzeWithDGX} from '../src/intelligence.mjs';
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -34,7 +35,7 @@ export async function browse(page,plan,result){
   const response=await page.goto(current,{waitUntil:'domcontentloaded',timeout:20000});
   const elapsed=Math.round(performance.now()-t);
   const status=response?.status()??0;
-  result.pages.push({url:page.url().slice(0,500),status,durationMs:elapsed});
+  result.pages.push({url:safeReportUrl(page.url(),500),status,durationMs:elapsed});
   result.status=status;
   visited.add(new URL(page.url()).pathname);
   if(status===403||status===429||status>=500||status===0){result.error='Site blocked or rejected the test (HTTP '+status+')';break;}
@@ -80,16 +81,16 @@ async function runOne(index,plan,browser,playwright,shared){
   await context.route('**/*',route=>guardedRoute(route,origin));
   const page=await context.newPage();
   page.on('request',request=>{const event=classifyAnalyticsRequest(request.url());if(event&&result.analyticsRequests.length<100)result.analyticsRequests.push(event);});
-  page.on('pageerror',e=>{if(result.jsErrors.length<15)result.jsErrors.push(String(e.message).slice(0,300));});
+  page.on('pageerror',e=>{if(result.jsErrors.length<15)result.jsErrors.push(safeReportMessage(e.message,300));});
   page.on('response',r=>{if(r.url().startsWith(origin+'/')&&r.status()>=400){
-   result.httpErrors.push({status:r.status(),url:r.url().slice(0,300)});
+   result.httpErrors.push({status:r.status(),url:safeReportUrl(r.url(),300)});
    if(r.status()===403||r.status()===429||r.status()>=500)shared.abort=true;
   }});
   page.on('requestfailed',r=>{if(result.requestFailures.length<15&&r.url().startsWith(origin+'/'))
-   result.requestFailures.push(r.url().slice(0,300));});
+   result.requestFailures.push(safeReportUrl(r.url(),300));});
   await browse(page,plan,result);
   result.ok=!result.error&&result.pages.length>0&&result.pages.every(p=>p.status>=200&&p.status<400);
- }catch(e){result.error=String(e?.message||e).slice(0,500);}
+ }catch(e){result.error=safeReportMessage(e?.message||e,500);}
  finally{
   result.analyticsSummary=summarizeAnalyticsRequests(result.analyticsRequests);
   result.durationMs=Math.round(performance.now()-started);
