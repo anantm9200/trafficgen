@@ -24,7 +24,7 @@ for(const host of hosts){
    request(host+'/api/health'),request(host+'/api/spec'),
    request(host+'/api/auth-check')
   ]);
-  check('homepage',html.status===200&&html.type.includes('text/html')&&html.text.includes('src="/app.js"'),String(html.status));
+  check('homepage',html.status===200&&html.type.includes('text/html')&&/<script\b[^>]*\bsrc="\/app\.js(?:\?[^"]+)?"/i.test(html.text),String(html.status));
   check('all critical dashboard controls',requiredControls.every(id=>html.text.includes('id="'+id+'"')),
    requiredControls.filter(id=>!html.text.includes('id="'+id+'"')).join(','));
   check('CSS asset',css.status===200&&css.type.includes('text/css')&&css.text.length>15000,String(css.status));

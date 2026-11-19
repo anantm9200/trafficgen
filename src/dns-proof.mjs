@@ -1,10 +1,8 @@
-import { resolveTxt } from 'node:dns/promises';
-import { parseTarget, error } from './plan.mjs';
-import { assertPublicDns } from './ownership.mjs';
-
+import {resolveTxt} from 'node:dns/promises';
+import {parseTarget,error} from './plan.mjs';
+import {assertPublicDns} from './ownership.mjs';
 export const DNS_PROOF_PREFIX='_visitorlab';
 export const DNS_PROOF_MARKER='visitorlab-verification=';
-
 export function dnsProofRecord(rawUrl,token){
  const u=parseTarget(rawUrl);
  if(typeof token!=='string'||!/^tg_[A-Za-z0-9_-]{16,100}$/.test(token))throw error('Invalid site verification token');
@@ -14,17 +12,11 @@ export function flattenTxtRecords(records){
  if(!Array.isArray(records))return [];
  return records.slice(0,100).filter(Array.isArray).map(chunks=>chunks.join('').trim().replace(/^"(.*)"$/,'$1')).filter(Boolean);
 }
-/**
- * Website proof must remain present: check DNS TXT again before every test.
- * This does NOT create persistent account ownership or grant access by itself.
- */
 export async function verifyDnsOwnership(rawUrl,token,{txtLookup=resolveTxt,dnsCheck=assertPublicDns}={}){
  const record=dnsProofRecord(rawUrl,token);
  await dnsCheck(record.host);
  let records;
- try{
-  records=flattenTxtRecords(await txtLookup(record.name));
- }catch(e){
+ try{records=flattenTxtRecords(await txtLookup(record.name))}catch(e){
   if(['ENODATA','ENOTFOUND','ENODOMAIN','ESERVFAIL','ETIMEOUT'].includes(e?.code))
    throw error('DNS TXT record not found yet at '+record.name+'. Check the record and retry after DNS propagation.',403);
   throw error('DNS TXT lookup failed. Retry shortly or check your DNS provider.',503);
