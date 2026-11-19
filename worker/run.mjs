@@ -5,27 +5,26 @@ import {normalizePlan,COUNTRIES,DEVICES,safePath,toSyntheticUrl,publicPlan,msSum
 import {verifyOwnership} from '../src/ownership.mjs';
 import {submitGA4} from '../src/ga4.mjs';
 import {classifyAnalyticsRequest,summarizeAnalyticsRequests} from '../src/analytics-observe.mjs';
+import {decideBrowserRequest} from '../src/browser-policy.mjs';
 import {analyzeWithDGX} from '../src/intelligence.mjs';
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const BLOCKED_HOSTS=['google-analytics.com','googletagmanager.com','doubleclick.net','facebook.com','connect.facebook.net','clarity.ms','hotjar.com','segment.io','plausible.io','posthog.com'];
 const STATIC_HOSTS=new Set(['fonts.googleapis.com','fonts.gstatic.com','cdn.jsdelivr.net','cdnjs.cloudflare.com','unpkg.com','images.unsplash.com']);
 const matches=(host,base)=>host===base||host.endsWith('.'+base);
-function guardedRoute(route,origin){
- const request=route.request();let u;
- try{u=new URL(request.url());}catch{return route.abort();}
- if(u.protocol==='data:'||u.protocol==='blob:')return route.continue();
- if(u.protocol!=='https:')return route.abort();
- if(!['GET','HEAD'].includes(request.method()))return route.abort();
- // Allow analytics tag libraries to load so the browser can emit observable events.\n // Collection endpoints remain blocked until an isolated QA destination is configured.\n if(u.hostname==='www.googletagmanager.com'&&request.resourceType()==='script')return route.continue();\n if(u.hostname==='va.vercel-scripts.com'&&request.resourceType()==='script')return route.continue();\n if(BLOCKED_HOSTS.some(h=>matches(u.hostname,h)))return route.abort();\n if(matches(u.hostname,'google-analytics.com')||matches(u.hostname,'vercel-insights.com'))return route.abort();
- if(request.isNavigationRequest()&&u.origin!==origin)return route.abort();
- if(u.origin===origin){
-  if(!safePath(u.href,origin))return route.abort();
-  return route.continue({headers:{...request.headers(),'x-synthetic-test':'visitorlab','x-visitorlab-test':'true'}});
+export function guardedRoute(route,origin){
+ const request=route.request();
+ const verdict=decideBrowserRequest({url:request.url(),method:request.method(),
+  resourceType:request.resourceType(),isNavigation:request.isNavigationRequest(),origin});
+ if(!verdict.allow)return route.abort();
+ if(verdict.owned){
+  if(!safePath(request.url(),origin))return route.abort();
+  return route.continue({headers:{...request.headers(),
+   'x-synthetic-test':'visitorlab','x-visitorlab-test':'true'}});
  }
- if(STATIC_HOSTS.has(u.hostname)&&['stylesheet','font','image','script'].includes(request.resourceType()))return route.continue();
- return route.abort();
+ return route.continue();
 }
+
 export async function browse(page,plan,result){
  const origin=new URL(plan.targetUrl).origin,visited=new Set();
  let current=toSyntheticUrl(plan.targetUrl,plan);
