@@ -42,5 +42,5 @@ test('DGX job listings are bounded summaries and job reports remain retrievable'
  const worker=readFileSync(new URL('../worker/dgx-queue.mjs',import.meta.url),'utf8');
  assert.match(worker,/reportAvailable:Boolean/);
  assert.match(worker,/job:publicJob\(row,true\)/);
- assert.match(worker,/json_extract\(plan/);
+ assert.match(worker,/CREATE UNIQUE INDEX IF NOT EXISTS jobs_run_id/);
 });

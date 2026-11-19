@@ -1,13 +1,17 @@
-import {readFile,mkdir,writeFile} from 'node:fs/promises';
+import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {performance} from 'node:perf_hooks';
 import {normalizePlan,COUNTRIES,DEVICES,safePath,toSyntheticUrl,publicPlan,msSummary} from '../src/plan.mjs';
 import {verifyOwnership} from '../src/ownership.mjs';
-import {submitGA4} from '../src/ga4.mjs';
 import {classifyAnalyticsRequest,summarizeAnalyticsRequests} from '../src/analytics-observe.mjs';
+import {analyzeWithDGX} from '../src/intelligence.mjs';
+import {runPacedSessions,withBrowser} from '../src/execution-engine.mjs';
+import {sampleResourceAdmission} from '../src/resource-budget.mjs';
+import {writePrivateReport} from '../src/report-storage.mjs';
+import {normalizeJourneyPlan} from '../src/worker-journey-plan.mjs';
+import {executeSafeJourney} from '../src/journey-runtime.mjs';
 import {decideBrowserRequest} from '../src/browser-policy.mjs';
 import {safeReportUrl,safeReportMessage} from '../src/report-safety.mjs';
-import {analyzeWithDGX} from '../src/intelligence.mjs';
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const BLOCKED_HOSTS=['google-analytics.com','googletagmanager.com','doubleclick.net','facebook.com','connect.facebook.net','clarity.ms','hotjar.com','segment.io','plausible.io','posthog.com'];
@@ -15,17 +19,16 @@ const STATIC_HOSTS=new Set(['fonts.googleapis.com','fonts.gstatic.com','cdn.jsde
 const matches=(host,base)=>host===base||host.endsWith('.'+base);
 export function guardedRoute(route,origin){
  const request=route.request();
- const verdict=decideBrowserRequest({url:request.url(),method:request.method(),
+ const decision=decideBrowserRequest({url:request.url(),method:request.method(),
   resourceType:request.resourceType(),isNavigation:request.isNavigationRequest(),origin});
- if(!verdict.allow)return route.abort();
- if(verdict.owned){
+ if(!decision.allow)return route.abort();
+ if(decision.owned){
   if(!safePath(request.url(),origin))return route.abort();
   return route.continue({headers:{...request.headers(),
    'x-synthetic-test':'visitorlab','x-visitorlab-test':'true'}});
  }
  return route.continue();
 }
-
 export async function browse(page,plan,result){
  const origin=new URL(plan.targetUrl).origin,visited=new Set();
  let current=toSyntheticUrl(plan.targetUrl,plan);
@@ -74,60 +77,69 @@ async function runOne(index,plan,browser,playwright,shared){
  let context;
  const started=performance.now();
  try{
+  const contextStarted=performance.now();
   context=await browser.newContext({...preset,locale:country.locale,timezoneId:country.timezoneId,
     geolocation:country.geolocation,permissions:['geolocation'],acceptDownloads:false,serviceWorkers:'block'});
   context.setDefaultTimeout(5000);
   const origin=new URL(plan.targetUrl).origin;
   await context.route('**/*',route=>guardedRoute(route,origin));
   const page=await context.newPage();
+  result.contextStartupMs=Math.round(performance.now()-contextStarted);
   page.on('request',request=>{const event=classifyAnalyticsRequest(request.url());if(event&&result.analyticsRequests.length<100)result.analyticsRequests.push(event);});
   page.on('pageerror',e=>{if(result.jsErrors.length<15)result.jsErrors.push(safeReportMessage(e.message,300));});
   page.on('response',r=>{if(r.url().startsWith(origin+'/')&&r.status()>=400){
-   result.httpErrors.push({status:r.status(),url:safeReportUrl(r.url(),300)});
+   if(result.httpErrors.length<15)result.httpErrors.push({status:r.status(),url:safeReportUrl(r.url(),300)});
    if(r.status()===403||r.status()===429||r.status()>=500)shared.abort=true;
   }});
   page.on('requestfailed',r=>{if(result.requestFailures.length<15&&r.url().startsWith(origin+'/'))
    result.requestFailures.push(safeReportUrl(r.url(),300));});
-  await browse(page,plan,result);
-  result.ok=!result.error&&result.pages.length>0&&result.pages.every(p=>p.status>=200&&p.status<400);
+  if(plan.requestedJourney){
+   const journey=await executeSafeJourney(page,{siteUrl:origin,journey:plan.requestedJourney},{
+    navigateUrl:url=>toSyntheticUrl(url,plan),
+    onNavigation:({url,status,durationMs})=>{
+     result.pages.push({url:safeReportUrl(url,500),status,durationMs});result.status=status;
+     if([403,429].includes(status)||status>=500)shared.abort=true;
+    }
+   });
+   result.journey=journey;
+   if(!journey.ok)result.error='Explicit journey failed at step '+(journey.steps.at(-1)?.step??'?')+': '+(journey.steps.at(-1)?.error||'unknown');
+  }else await browse(page,plan,result);
+  result.ok=!result.error&&result.pages.length>0&&result.pages.every(p=>p.status>=200&&p.status<400)&&(!result.journey||result.journey.ok);
  }catch(e){result.error=safeReportMessage(e?.message||e,500);}
  finally{
   result.analyticsSummary=summarizeAnalyticsRequests(result.analyticsRequests);
   result.durationMs=Math.round(performance.now()-started);
   result.endedAt=new Date().toISOString();
   if(context)await context.close().catch(()=>{});
-  if(plan.analytics.enabled)try{result.ga4=await submitGA4(plan,result);}catch(e){result.ga4={sent:false,reason:String(e.message).slice(0,200)};}
+  // QA delivery is handled exclusively by the isolated QA-property service.
  }
  return result;
 }
 export async function execute(planRaw,{launchBrowsers=true}={}){
- const plan=normalizePlan(planRaw);
+ const plan=normalizeJourneyPlan(planRaw,normalizePlan);
+ if(plan.analytics?.enabled)throw new Error('Production GA4 collection is disabled; configure an isolated QA property');
  await verifyOwnership(plan.targetUrl,plan.verificationToken,{method:plan.verificationMethod});
- const startedAt=new Date().toISOString();
+ const startedAt=new Date().toISOString(),started=performance.now(),memoryStart=process.memoryUsage().rss;
+ const resource=sampleResourceAdmission({requestedConcurrency:plan.concurrency,maxConcurrency:1});
+ if(!resource.allowed)throw new Error('Worker resource budget unavailable: '+resource.reason);
  const playwright=await import('playwright');
- const browser=await playwright[plan.browser].launch({headless:true});
- const results=new Array(plan.sessions);
- const shared={abort:false},workers=[];
- let cursor=0;let lastStart=0;let pacing=Promise.resolve();
- async function paced(){
-  let release;const previous=pacing;pacing=new Promise(r=>{release=r;});
-  await previous;
-  try{const delay=Math.max(0,lastStart+plan.intervalSeconds*1000-Date.now());if(delay)await sleep(delay);lastStart=Date.now();}
-  finally{release();}
- }
- async function loop(){
-  while(!shared.abort){
-   const index=cursor++;
-   if(index>=plan.sessions)break;
-   await paced();if(shared.abort)break;
-   results[index]=await runOne(index,plan,browser,playwright,shared);
-   const r=results[index];console.log('SESSION',r.index,r.ok?'PASS':'FAIL',r.status||'-',r.durationMs+'ms');
-  }
- }
- try{for(let i=0;i<Math.min(plan.sessions,plan.concurrency);i++)workers.push(loop());
-  await Promise.all(workers);}
- finally{await browser.close();}
- const completed=results.filter(Boolean);
+ const shared={abort:false};
+ // One browser per job. Reuse the browser across independent short-lived contexts,
+ // keeping cookies, storage and service workers isolated for every synthetic test.
+ const {value:execution,startupMs}=await withBrowser({
+  launch:()=>playwright[plan.browser].launch({headless:true}),
+  execute:browser=>runPacedSessions({
+   sessions:plan.sessions,concurrency:resource.concurrency,
+   intervalMs:plan.intervalSeconds*1000,
+   shouldStop:()=>shared.abort,
+   run:async index=>{
+    const result=await runOne(index,plan,browser,playwright,shared);
+    console.log('SESSION',result.index,result.ok?'PASS':'FAIL',result.status||'-',result.durationMs+'ms');
+    return result;
+   }
+  })
+ });
+ const completed=execution.results.filter(Boolean);
  const timings=completed.flatMap(x=>x.pages.map(p=>p.durationMs));
  const summary={requested:plan.sessions,completed:completed.length,passed:completed.filter(x=>x.ok).length,
   failed:completed.filter(x=>!x.ok).length,pagesVisited:completed.reduce((n,x)=>n+x.pages.length,0),
@@ -135,7 +147,12 @@ export async function execute(planRaw,{launchBrowsers=true}={}){
   httpErrors:completed.reduce((n,x)=>n+x.httpErrors.length,0),
   brokenImages:completed.reduce((n,x)=>n+x.brokenImages,0),
   analyticsRequestsObserved:completed.reduce((n,x)=>n+x.analyticsRequests.length,0),
-  timingsMs:msSummary(timings),stoppedEarly:shared.abort,finishedAt:new Date().toISOString()};
+  timingsMs:msSummary(timings),stoppedEarly:shared.abort||execution.metrics.stoppedEarly,finishedAt:new Date().toISOString(),
+  performance:{browserStartupMs:startupMs,executionWallMs:Math.round(performance.now()-started),resourceAdmission:resource,
+   contextStartupMs:msSummary(completed.map(s=>s.contextStartupMs).filter(Number.isFinite)),
+   workerNodeRssStartMiB:Math.round(memoryStart/1048576),workerNodeRssEndMiB:Math.round(process.memoryUsage().rss/1048576),
+   pacing:execution.metrics}
+ };
  return {plan:publicPlan(plan),originIPCountry:'not_asserted',startedAt,summary,sessions:completed};
 }
 async function main(){
@@ -146,9 +163,7 @@ async function main(){
  if(json.length>16000)throw new Error('Plan too large');
  const result=await execute(JSON.parse(json));
  result.intelligence=await analyzeWithDGX(result);
- await mkdir('reports',{recursive:true});
- const filenameOut='reports/report-'+result.plan.runId+'.json';
- await writeFile(filenameOut,JSON.stringify(result,null,2)+'\n');
+ const filenameOut=await writePrivateReport('reports',result);
  console.log('REPORT',filenameOut,JSON.stringify(result.summary));
  if(result.summary.failed>0||result.summary.stoppedEarly)process.exitCode=1;
 }

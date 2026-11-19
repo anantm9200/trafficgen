@@ -7,10 +7,14 @@
   "scripts": {
     "start": "node bin/server.mjs",
     "dev": "node bin/server.mjs",
-    "test": "node --test tests/plan.test.mjs tests/intelligence.test.mjs tests/inspection.test.mjs tests/dns-ga4.test.mjs tests/site-enrollment.test.mjs tests/dashboard-static.test.mjs tests/ga4-resilience.test.mjs tests/analytics-observe.test.mjs tests/dgx-client.test.mjs tests/worker-metrics.test.mjs tests/release-regressions.test.mjs",
+    "test": "node --test tests/analytics-observe.test.mjs tests/browser-policy.test.mjs tests/campaign-api.test.mjs tests/campaign-definition.test.mjs tests/campaign-durability.test.mjs tests/campaign-gateway.test.mjs tests/campaign-lab-ui.test.mjs tests/campaign-loopback.test.mjs tests/campaign-report.test.mjs tests/campaign-scheduler.test.mjs tests/campaign-store.test.mjs tests/chromium-dom-integration.test.mjs tests/command-center-deployment.test.mjs tests/command-center.test.mjs tests/dashboard-static.test.mjs tests/dgx-client.test.mjs tests/dgx-queue-http.test.mjs tests/dgx-status-proxy.test.mjs tests/dns-ga4.test.mjs tests/execution-engine.test.mjs tests/full-dispatch-bridge.test.mjs tests/ga4-batch-efficiency.test.mjs tests/ga4-property-isolation.test.mjs tests/ga4-reporting.test.mjs tests/ga4-resilience.test.mjs tests/ga4-stream-proof.test.mjs tests/inspection.test.mjs tests/intelligence.test.mjs tests/job-report-validation.test.mjs tests/job-supervisor.test.mjs tests/journey-runtime.test.mjs tests/plan.test.mjs tests/qa-analytics.test.mjs tests/qa-registry.test.mjs tests/queue-restart.test.mjs tests/release-preflight.test.mjs tests/release-regressions.test.mjs tests/report-safety.test.mjs tests/report-storage.test.mjs tests/resource-budget.test.mjs tests/run-identity.test.mjs tests/run-reconciliation.test.mjs tests/site-enrollment.test.mjs tests/vercel-dgx-api.test.mjs tests/worker-adapters.test.mjs tests/worker-health-ui.test.mjs tests/worker-integration.test.mjs tests/worker-journey-plan.test.mjs tests/worker-metrics.test.mjs",
     "worker": "node worker/run.mjs",
     "cli": "node bin/trafficgen.mjs",
-    "test:browser": "node --test tests/browser.test.mjs"
+    "test:browser": "node --test tests/browser.test.mjs",
+    "lab": "node bin/campaign-server.mjs",
+    "test:visual": "python tests/campaign-lab-visual-smoke.py",
+    "benchmark:gateway": "node scripts/benchmark-campaign-gateway.mjs",
+    "preflight": "node scripts/preflight.mjs"
   },
   "dependencies": {
     "playwright": "^1.56.0"
