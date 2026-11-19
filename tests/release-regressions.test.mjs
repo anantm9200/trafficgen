@@ -34,7 +34,7 @@ test('browser QA evidence redacts query strings and credentials',()=>{
 test('production monitor and browser test support versioned JavaScript assets',()=>{
  const monitor=readFileSync(new URL('../scripts/monitor-production.mjs',import.meta.url),'utf8');
  const smoke=readFileSync(new URL('./dashboard-browser.test.mjs',import.meta.url),'utf8');
- assert.equal(monitor.includes('html.text.includes('+'\\'src="/app.js"\\''+')'),false);
+ assert.equal(monitor.includes('html.text.includes('),false);
  assert.match(monitor,/app\\\.js/);
  assert.match(smoke,/app\\\.js/);
 });
