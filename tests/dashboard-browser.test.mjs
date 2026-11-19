@@ -5,7 +5,7 @@ import {chromium} from 'playwright';
 
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8')
  .replace(/<link[^>]*>/g,'')
- .replaceAll('<script type="module" src="/app.js"></script>','');
+ .replace(/<script\s+type="module"\s+src="\/app\.js(?:\?[^"]+)?"><\/script>/g,'');
 const js=readFileSync(new URL('../app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../styles.css',import.meta.url),'utf8');
 
