@@ -6,7 +6,7 @@
  <meta name="description" content="TrafficGen synthetic browser campaign QA and analytics verification console.">
  <title>TrafficGen — Operations intelligence</title>
  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/styles.css"><script src="/app.js" type="module"></script>
-</head>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"></head>
 <body>
  <div class="shell">
   <aside class="rail">
@@ -23,7 +23,7 @@
    <div class="rail-bottom"><span class="dot"></span> Synthetic QA environment <small>Production metrics protected</small></div>
   </aside>
   <main class="main">
-   <header class="topbar"><div class="crumb"><span class="crumb-product">TRAFFICGEN</span><span>/</span> <span class="crumb-location">Overview</span></div><div class="top-right"><span class="environment-pill"><span class="pulse-dot"></span> LOCAL STAGING</span><span id="connection" class="pill">Not connected</span><button id="theme-toggle" class="ghost theme-toggle" aria-label="Switch color theme" type="button">◐ <span>Theme</span></button><button class="ghost" id="refresh" type="button">↻ <span>Refresh</span></button></div></header>
+   <header class="topbar"><div class="crumb"><span class="crumb-product">TRAFFICGEN</span><span>/</span> <span class="crumb-location">Overview</span></div><div class="top-right"><span class="environment-pill"><span class="pulse-dot"></span> SYNTHETIC QA</span><span id="connection" class="pill">Not connected</span><button id="theme-toggle" class="ghost theme-toggle" aria-label="Switch color theme" type="button">◐ <span>Theme</span></button><button class="ghost" id="refresh" type="button">↻ <span>Refresh</span></button></div></header>
    <section id="overview" class="operations workspace-screen" aria-labelledby="page-heading">
     <div class="operations-heading"><div><div class="eyebrow">WORKSPACE / REAL-TIME QA OPERATIONS</div><h1 id="page-heading">Execution <span>intelligence.</span></h1><p>Every campaign, browser journey and analytics check. One auditable command center.</p></div><div class="head-actions"><span class="synthetic-label">● SYNTHETIC TEST EVIDENCE</span><a class="primary" href="#create">+ New campaign</a></div></div>
     <div class="metrics" aria-label="Actual test metrics">
@@ -71,7 +71,7 @@
    <section class="workspace-screen" id="analytics" hidden><div class="section-row"><div><span class="eyebrow">TRUTHFUL ANALYTICS / ISOLATED QA</span><h2>Analytics verification</h2><p class="muted">Transport delivery, authenticated reporting and reconciliation are separate states.</p></div></div>
    <section class="panel qa-evidence-panel"><div class="qa-evidence-summary"><div><span>Configured destination</span><strong id="qa-destination">—</strong><small>Dedicated QA property only</small></div><div><span>Accepted event transports</span><strong id="qa-transport">—</strong><small>Does not prove GA4 processing</small></div><div><span>Verified QA runs</span><strong id="qa-verified-runs">—</strong><small>Authenticated GA4 reporting only</small></div></div><div id="qa-audit-list" class="qa-audit-list"><p class="muted">Connect to load reconciliation records.</p></div></section></section>
    <section id="settings" class="panel connection-panel workspace-screen" hidden><div class="section-row inline"><div><span class="eyebrow">WORKSPACE ACCESS</span><h2>Connection</h2><p class="muted">Enter the service key for your locally hosted campaign API. The key is held only for this tab session.</p></div></div><div class="key-row"><input id="api-key" type="password" autocomplete="off" placeholder="Service API key (24+ characters)" aria-label="Service API key"><button id="connect" type="button" class="primary button">Connect</button><button id="disconnect" type="button" class="outline">Clear</button></div><p id="feedback" aria-live="polite" class="feedback">Nothing has been dispatched.</p><p id="qa-connection" class="qa-connection">GA4 QA: not configured</p></section>
-   <footer><span>© TrafficGen — Execution intelligence</span><span>Authorized synthetic QA · Local staging · Production analytics protected</span></footer>
+   <footer><span>© TrafficGen — Execution intelligence</span><span>Authorized synthetic QA · Preview environment · Production analytics protected</span></footer>
   </main>
  </div>
  <dialog id="run-dialog"><form method="dialog" class="dialog-form"><div class="eyebrow">DOMAIN OWNERSHIP REQUIRED</div><h2>Dispatch this test</h2><p>TrafficGen verifies the <code>_visitorlab</code> DNS TXT proof before each browser run. Your token is never saved in the campaign database.</p><label>Verification token<input id="proof-token" type="password" autocomplete="off" placeholder="tg_…"></label><div class="dialog-actions"><button type="button" id="submit-run" class="primary button">Verify & dispatch</button><button class="outline" value="cancel">Cancel</button></div></form></dialog>
