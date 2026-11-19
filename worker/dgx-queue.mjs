@@ -24,7 +24,7 @@ const authorized=req=>{
  const a=Buffer.from(key),b=Buffer.from(supplied);
  return a.length>=32&&a.length===b.length&&timingSafeEqual(a,b);
 };
-const publicJob=row=>row&&({id:row.id,status:row.status,createdAt:row.created_at,startedAt:row.started_at,finishedAt:row.finished_at,error:row.error,report:row.report?JSON.parse(row.report):null});
+const publicJob=(row,details=false)=>row&&({id:row.id,status:row.status,createdAt:row.created_at,startedAt:row.started_at,finishedAt:row.finished_at,error:row.error,reportAvailable:Boolean(row.report),...(details?{report:row.report?JSON.parse(row.report):null}:{})});
 function schedule(){if(pumping)return;pumping=true;setImmediate(async()=>{try{await pump();}finally{pumping=false;if(!active&&db.prepare("SELECT id FROM jobs WHERE status='queued' LIMIT 1").get())schedule();}});}
 async function pump(){
  if(active)return;
@@ -66,7 +66,7 @@ const server=http.createServer(async(req,res)=>{
   const match=url.pathname.match(/^\/jobs\/([a-f0-9-]{36})(\/cancel)?$/);
   if(req.method==='GET'&&match&&!match[2]){
    const row=db.prepare('SELECT * FROM jobs WHERE id=?').get(match[1]);
-   return row?send(res,200,{ok:true,job:publicJob(row)}):send(res,404,{ok:false,error:'Job not found'});
+   return row?send(res,200,{ok:true,job:publicJob(row,true)}):send(res,404,{ok:false,error:'Job not found'});
   }
   if(req.method==='POST'&&match&&match[2]){
    const row=db.prepare('SELECT status FROM jobs WHERE id=?').get(match[1]);
@@ -85,6 +85,8 @@ const server=http.createServer(async(req,res)=>{
    await verifyOwnership(plan.targetUrl,plan.verificationToken,{method:plan.verificationMethod});
    if(plan.concurrency!==1)return send(res,400,{ok:false,error:'DGX currently permits concurrency=1'});
    if(plan.analytics.enabled)return send(res,400,{ok:false,error:'GA4 ingestion disabled for DGX queue; use synthetic observation only'});
+   const existing=db.prepare("SELECT id FROM jobs WHERE json_extract(plan,'$.runId')=? LIMIT 1").get(plan.runId);
+   if(existing)return send(res,409,{ok:false,error:'This run ID already exists; check job history'});
    const pending=db.prepare("SELECT count(*) AS n FROM jobs WHERE status IN ('queued','running')").get().n;
    if(pending>=10)return send(res,429,{ok:false,error:'Queue capacity reached'});
    const id=randomUUID();
