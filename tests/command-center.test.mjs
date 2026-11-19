@@ -39,3 +39,11 @@ test('theme, bounded auto-refresh and consent-safe labeling are explicit',()=>{
  assert.match(js,/60000\)/);
  assert.match(html,/Production analytics protected/);
 });
+
+test('workspace key validates separately before DGX connection',()=>{
+ const code=readFileSync(new URL('command-center/app.js',root),'utf8');
+ assert.match(code,/async function verifyWorkspaceKey/);
+ assert.match(code,/\/api\/auth-check/);
+ assert.match(code,/Workspace key verified/);
+ assert.match(code,/state\.keyAccepted&&state\.connected/);
+});

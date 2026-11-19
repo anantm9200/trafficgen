@@ -36,5 +36,7 @@ export async function relayCampaignViaDgx(route,{method='GET',body,env=process.e
  if(isCsv)return {status:response.status,kind:'csv',data};
  let json;try{json=JSON.parse(data)}catch{throw fail('Campaign service returned invalid JSON',502)}
  if(!json||typeof json!=='object'||Array.isArray(json)||typeof json.ok!=='boolean')throw fail('Campaign service response invalid',502);
+ if(response.status===404&&json.error==='Not found'&&['campaigns','runs','insights','qa/health','worker-health'].includes(route))
+  throw fail('DGX Campaign API route missing. Update the DGX worker and start its loopback Campaign API.',503);
  return {status:response.status,kind:'json',data:json};
 }

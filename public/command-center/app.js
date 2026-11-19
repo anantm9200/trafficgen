@@ -7,14 +7,17 @@ function campaignApiUrl(path){
  if(location.hostname==='127.0.0.1'||location.hostname==='localhost')return path;
  return '/api/campaign-gateway?route='+encodeURIComponent(path.slice(5));
 }
-const state={key:sessionStorage.getItem(KEY)||'',campaigns:[],runs:[],summary:null,qaConfig:null,workerHealth:null,selected:null,connected:false,polling:false,period:'7d',campaignFilter:'all',campaignSearch:''};
+const state={key:sessionStorage.getItem(KEY)||'',campaigns:[],runs:[],summary:null,qaConfig:null,workerHealth:null,selected:null,connected:false,keyAccepted:false,polling:false,period:'7d',campaignFilter:'all',campaignSearch:''};
 const say=(message,error=false)=>{const el=$('#feedback');el.textContent=message;el.classList.toggle('error',error)};
 async function api(path,{method='GET',body}={}){
  if(!state.key)throw Error('Connect the service API key first');
  const response=await fetch(campaignApiUrl(path),{method,headers:{authorization:'Bearer '+state.key,...(body?{'content-type':'application/json'}:{})},
   body:body?JSON.stringify(body):undefined,cache:'no-store'});
- const result=await response.json();
- if(!response.ok||result?.ok===false)throw Error(result?.error||'Request failed');
+ let result;try{result=await response.json()}catch{throw Error('Campaign API returned an invalid response (HTTP '+response.status+').')}
+ if(!response.ok||result?.ok===false){
+  if(response.status===401&&state.keyAccepted)throw Error('DGX rejected its service token. The workspace key was accepted.');
+  throw Error(result?.error||'Campaign API request failed (HTTP '+response.status+')');
+ }
  return result;
 }
 function text(tag,value,cls=''){const el=document.createElement(tag);if(cls)el.className=cls;el.textContent=String(value??'');return el}
@@ -165,14 +168,26 @@ function render(){renderCampaigns();renderRuns();renderOperations();
  $('#complete-total').textContent=state.summary?.completed??'—';
  $('#pass-rate').textContent=state.summary?.successRatePercent==null?'—':state.summary.successRatePercent+'%';
  $('#explicit-step-summary').textContent=state.summary?.journeySteps?` • ${state.summary.journeyStepsPassed}/${state.summary.journeySteps} explicit steps passed`:'';
- $('#connection').textContent=!state.key?'Not connected':state.connected?'API connected':'API key supplied';$('#connection').classList.toggle('connected',state.connected)
+ $('#connection').textContent=!state.key?'Not connected':state.connected?'API connected':state.keyAccepted?'Workspace key verified · DGX unavailable':'Checking workspace key';$('#connection').classList.toggle('connected',state.connected)
 }
-async function refresh({silent=false}={}){try{
-  const [campaigns,runs,insights,qaHealth]=await Promise.all([api('/api/campaigns'),api('/api/runs'),api('/api/insights'),api('/api/qa/health')]);
+async function verifyWorkspaceKey(){
+ if(location.hostname==='localhost'||location.hostname==='127.0.0.1'){state.keyAccepted=true;return}
+ const response=await fetch('/api/auth-check',{method:'GET',
+  headers:{authorization:'Bearer '+state.key},cache:'no-store'});
+ let result;try{result=await response.json()}catch{throw Error('Workspace authentication returned an invalid response.')}
+ if(response.status===401)throw Error('Workspace key rejected. Check TG_API_KEY for this Vercel Preview environment.');
+ if(!response.ok||result?.ok!==true)throw Error('Workspace authentication is unavailable (HTTP '+response.status+').');
+ state.keyAccepted=true;render();
+}
+async function refresh({silent=false}={}){
+ if(!state.keyAccepted){if(!silent)say('Verify your workspace key first.',true);return}
+ try{
+  const campaigns=await api('/api/campaigns');
+  const [runs,insights,qaHealth]=await Promise.all([api('/api/runs'),api('/api/insights'),api('/api/qa/health')]);
   state.campaigns=campaigns.campaigns;state.runs=runs.runs;state.summary=insights.summary;state.qaConfig=qaHealth;
   try{const result=await api('/api/worker-health');state.workerHealth=result.worker}catch{state.workerHealth=null}
   state.connected=true;render();if(!silent)say(`Connected. ${state.campaigns.length} campaign(s) and ${state.runs.length} recorded run(s).`)
- }catch(e){state.connected=false;render();if(!silent)say(e.message,true)}
+ }catch(e){state.connected=false;render();if(!silent)say((state.keyAccepted?'Workspace key verified. DGX Campaign API unavailable: ':'')+e.message,true)}
 }
 /** Poll only active jobs with one bounded request at a time, never dispatch new browser traffic. */
 async function pollActiveRuns(){
@@ -309,9 +324,18 @@ function activateRoute(){
 }
 window.addEventListener('hashchange',activateRoute);
 activateRoute();
-$('#connect').addEventListener('click',()=>{const key=$('#api-key').value.trim();if(key.length<24)return say('Enter a service API key of at least 24 characters.',true);
- state.key=key;sessionStorage.setItem(KEY,key);$('#api-key').value='';refresh()});
-$('#disconnect').addEventListener('click',()=>{state.key='';state.connected=false;sessionStorage.removeItem(KEY);state.campaigns=[];state.runs=[];state.summary=null;state.qaConfig=null;state.workerHealth=null;render();say('Service key cleared.')});
+async function connectWorkspace(){
+ const key=$('#api-key').value.trim();
+ if(key.length<24)return say('Enter a TrafficGen workspace key of at least 24 characters.',true);
+ state.key=key;state.keyAccepted=false;sessionStorage.setItem(KEY,key);$('#api-key').value='';
+ try{await verifyWorkspaceKey();await refresh()}
+ catch(e){
+  if(e.message.includes('key rejected')){state.key='';sessionStorage.removeItem(KEY)}
+  state.keyAccepted=false;state.connected=false;render();say(e.message,true);
+ }
+}
+$('#connect').addEventListener('click',connectWorkspace);
+$('#disconnect').addEventListener('click',()=>{state.key='';state.connected=false;state.keyAccepted=false;sessionStorage.removeItem(KEY);state.campaigns=[];state.runs=[];state.summary=null;state.qaConfig=null;state.workerHealth=null;render();say('Service key cleared.')});
 $('#close-report').addEventListener('click',()=>$('#report-dialog').close());
 for(const [id,action] of [['add-nav','navigate'],['add-assert','assert'],['add-scroll','scroll'],['add-dwell','dwell']])$('#'+id).addEventListener('click',()=>addJourneyStep(action));
 $('#export-runs').addEventListener('click',exportRunsCSV);
@@ -340,5 +364,8 @@ $('#create-form').addEventListener('submit',async event=>{
  catch(e){say(e.message,true)}
 });
 setInterval(pollActiveRuns,15000);
-setInterval(()=>{if(state.key&&!state.polling&&document.visibilityState!=='hidden')refresh({silent:true})},60000);
-if(state.key)refresh();else render();
+setInterval(()=>{if(state.keyAccepted&&state.connected&&!state.polling&&document.visibilityState!=='hidden')refresh({silent:true})},60000);
+if(state.key)verifyWorkspaceKey().then(()=>refresh()).catch(e=>{
+ if(e.message.includes('key rejected')){state.key='';sessionStorage.removeItem(KEY)}
+ state.keyAccepted=false;state.connected=false;render();say(e.message,true);
+});else render();

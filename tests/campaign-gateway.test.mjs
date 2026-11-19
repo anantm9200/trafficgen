@@ -76,3 +76,12 @@ test('serverless handler authenticates before routing and returns JSON and synth
   assert.equal(fetches,2);
  }finally{globalThis.fetch=oldFetch;for(const k of Object.keys(process.env))if(!(k in saved))delete process.env[k];Object.assign(process.env,saved)}
 });
+
+test('an old DGX worker 404 is identified as missing Campaign API, not bad workspace key',async()=>{
+ const oldWorker=async()=>new Response(JSON.stringify({ok:false,error:'Not found'}),{
+  status:404,headers:{'content-type':'application/json'}});
+ await assert.rejects(()=>relayCampaignViaDgx('campaigns',{env,fetchImpl:oldWorker}),
+  e=>e.status===503&&/DGX Campaign API route missing/.test(e.message));
+ const legitimate=await relayCampaignViaDgx('campaigns/'+UUID,{env,fetchImpl:oldWorker});
+ assert.equal(legitimate.status,404);
+});
