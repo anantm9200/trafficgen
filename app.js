@@ -5,6 +5,9 @@ const STORE='trafficgen_workspace_v1';
 const TOKEN_KEY='trafficgen_session_api_key';
 const FLAG={US:'🇺🇸',IN:'🇮🇳',AE:'🇦🇪',DE:'🇩🇪',GB:'🇬🇧',FR:'🇫🇷',SG:'🇸🇬',AU:'🇦🇺',CA:'🇨🇦',ZA:'🇿🇦',NA:'🇳🇦',TZ:'🇹🇿'};
 const DEVICE_ICON={desktop:'▣',iphone:'▯',android:'▯',ipad:'▤',tablet:'▤'};
+// Operator-designated QA stream for the owned Falling Shares domain; public ID only.
+// Sending MP events still requires the matching secret on the execution worker.
+const GA4_TEST_STREAMS=Object.freeze({'www.fallingshares.com':'G-E3DFWFZ3YT','fallingshares.com':'G-E3DFWFZ3YT'});
 const UTM_LABELS={utm_source:'Traffic source',utm_medium:'Medium',utm_campaign:'Campaign name',utm_id:'Campaign ID',utm_term:'Campaign term',utm_content:'Creative / content',utm_source_platform:'Source platform',utm_creative_format:'Creative format',utm_marketing_tactic:'Marketing tactic'};
 const FALLBACK_COUNTRIES={US:{name:'United States'},IN:{name:'India'},AE:{name:'United Arab Emirates'},DE:{name:'Germany'},GB:{name:'United Kingdom'},FR:{name:'France'},SG:{name:'Singapore'},AU:{name:'Australia'},CA:{name:'Canada'},ZA:{name:'South Africa'},NA:{name:'Namibia'},TZ:{name:'Tanzania'}};
 const FALLBACK_DEVICES={desktop:{name:'Desktop',class:'desktop'},iphone:{name:'iPhone',class:'mobile'},android:{name:'Android',class:'mobile'},ipad:{name:'iPad',class:'tablet'},tablet:{name:'Android tablet',class:'tablet'}};
@@ -83,7 +86,8 @@ function renderSelectedSiteStatus(){
  const site=state.store.sites.find(s=>s.hostname===$('#plan-site-select').value&&s.status==='verified');
  if(!site){status.textContent='Add and verify a website in Websites before creating a live test.';status.className='field-help';return;}
  const g=site.ga4||{};
- const summary=g.measurementIds?.length?' · GA4 ID detected: '+g.measurementIds.join(', '):g.tagManagerIds?.length?' · Google Tag Manager detected (GA4 ID not visible)':' · GA4 not detected in initial HTML';
+ const assignedTestId=GA4_TEST_STREAMS[site.hostname];
+ const summary=assignedTestId?' · Assigned TrafficGen testing GA4: '+assignedTestId+' (owner-provided)':g.measurementIds?.length?' · GA4 ID detected: '+g.measurementIds.join(', '):g.tagManagerIds?.length?' · Google Tag Manager detected (GA4 ID not visible)':' · GA4 not detected in initial HTML';
  status.textContent='✓ DNS TXT verified on '+time(site.verifiedAt)+summary+'. Ownership is checked again before each test.';
  status.className='field-help verified';
 }
@@ -94,7 +98,9 @@ function selectVerifiedSite(host,{resetUrl=true}={}){
  $('#plan-site-select').value=site.hostname;
  if(resetUrl)$('#plan-url').value=site.origin+'/';
  const detected=site.ga4?.measurementIds?.[0];
- if(detected&&!$('#ga-measurement').value.trim())$('#ga-measurement').value=detected;
+ const assignedTestId=GA4_TEST_STREAMS[site.hostname];
+ if(assignedTestId)$('#ga-measurement').value=assignedTestId;
+ else if(detected&&!$('#ga-measurement').value.trim())$('#ga-measurement').value=detected;
  renderSelectedSiteStatus();renderBrief();
  return true;
 }
@@ -197,7 +203,7 @@ function renderWebsites(){
  const list=state.store.sites||[];
  $('#website-list').innerHTML=list.length?'<div class="record-list">'+list.map(site=>{
   const verified=site.status==='verified',ga=site.ga4||{};
-  const gaText=ga.measurementIds?.length?'GA4 ID found: '+ga.measurementIds.join(', ')+(ga.previouslyDetected?' · preserved from earlier scan':''):
+  const gaText=GA4_TEST_STREAMS[site.hostname]?'TrafficGen test GA4 assigned: '+GA4_TEST_STREAMS[site.hostname]+' (owner-provided) · '+(ga.tagManagerIds?.length?'GTM '+ga.tagManagerIds.join(', '):'GA4 delivery unverified'):ga.measurementIds?.length?'GA4 ID found: '+ga.measurementIds.join(', ')+(ga.previouslyDetected?' · preserved from earlier scan':''):
    ga.tagManagerIds?.length?'GTM: '+ga.tagManagerIds.join(', ')+' (GA4 ID may load inside GTM)':
    ga.status==='inspection_unavailable'?'GA4 scan unavailable · DNS verification unaffected':
    ga.status==='not_found_in_html'?'GA4 not found in initial HTML · runtime tag may still exist':
