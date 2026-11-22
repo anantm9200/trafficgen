@@ -60,6 +60,16 @@ GitHub Actions JSON report artifact (14-day retention)
 - Synthetic GA4 custom event `visitorlab_synthetic_visit` using Measurement Protocol, with `tg_synthetic=1`, `traffic_type=internal`, run metadata, country/device profile and nine `tg_utm_*` values. **These are test metadata, not authentic Google acquisition/referral attribution.**
 - No residential proxy rotation, anti-bot evasion, advertising clicks or disguised engagement.
 
+## Falling Shares — TrafficGen testing stream
+
+For `https://www.fallingshares.com/`, the owner-designated **TrafficGen testing** destination is the **existing** GA4 Measurement ID `G-E3DFWFZ3YT` (the website currently loads GTM `GTM-TDGW33GH`). Selecting the verified Falling Shares domain in TrafficGen now pre-fills that Measurement ID; this is an owner-provided mapping, not an auto-detection claim.
+
+- The existing GTM container and GA4 stream are unchanged. Label the property as testing in GA4 Admin if desired; the code cannot rename it or stop real visitors also being counted there. Historical GA4 data remains intact.
+- TrafficGen's server-side synthetic events remain labelled `visitorlab_synthetic_visit`, `tg_synthetic=1` and `traffic_type=internal`; they are not authentic customer acquisition.
+- Browser-generated `page_view` and `session_start` from GTM can also appear in this same stream. Treat the entire stream as testing/mixed data, not clean organic traffic.
+- A server-side test event requires `GA4_MEASUREMENT_ID=G-E3DFWFZ3YT` plus the **matching private** `GA4_API_SECRET` in the execution worker's secret settings. The ID alone is insufficient. Never commit the secret.
+- Before genuine acquisition measurement is needed, create a separate production property and route real visitors to it. Two unconditional tags would duplicate tracking rather than separate it.
+
 ## Vercel deployment
 
 The project is connected to GitHub and automatically deploys pushes to `main`. Default `/` serves the interactive dashboard. JSON health remains at `/api/health`.
