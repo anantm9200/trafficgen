@@ -2,7 +2,7 @@
 
 The Playwright worker now observes browser-generated GA4 and Vercel Analytics collection requests and includes a per-session `analyticsRequests` list and `analyticsSummary` in JSON reports. The summary includes observed requests and event types, not confirmed analytics ingestion.
 
-For safety, analytics collection endpoints remain blocked in this phase. The browser can load supported GA4 and Vercel tag scripts, but collection traffic is not forwarded. This prevents synthetic testing from altering production audience metrics. The worker's existing explicitly labeled Measurement Protocol test event remains a separate opt-in integration.
+For safety, analytics collection endpoints remain blocked in this phase. The browser can load supported GA4 and Vercel tag scripts, but collection traffic is not forwarded. This prevents synthetic testing from altering production audience metrics. Normal Measurement Protocol collection is disabled until a separate QA destination is independently verified. The debug validation endpoint remains available. Known browser collection endpoints are blocked, but first-party collection proxies and server-side site metrics cannot be ruled out by this alone. Use a dedicated staging site with analytics disabled or independently isolated.
 
 ## Next milestones
 

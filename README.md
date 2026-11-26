@@ -1,5 +1,9 @@
 # VisitorLab / TrafficGen
 
+## QA analytics isolation (pending verification)
+
+Normal GA4 Measurement Protocol collection is disabled pending independent verification of a dedicated QA property. GA4 debug validation remains available. Earlier configuration examples below are historical and do not authorize production event submission. Known collection endpoints are blocked, but first-party analytics proxies and server-side site logging may still observe requests. Use a dedicated staging site for clean isolation. Public report URLs omit query strings and fragments; paths and other diagnostic fields can still contain sensitive information, so review reports before sharing.
+
 ## Web dashboard (production)
 
 **Verified production URLs:** https://trafficgen-ua6y.vercel.app/ and https://trafficgen.vercel.app/. Both names are attached to the same connected Vercel TrafficGen project. The user-designated hostname was attached and validated on November 17, 2026.
