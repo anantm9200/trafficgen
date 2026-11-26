@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizePlan,safePath,toSyntheticUrl,UTM_KEYS,COUNTRIES,DEVICES} from '../src/plan.mjs';
+import {normalizePlan,safePath,toSyntheticUrl,UTM_KEYS,COUNTRIES,DEVICES,evidenceUrl,publicPlan} from '../src/plan.mjs';
 import {isPublicIp,verifyOwnership} from '../src/ownership.mjs';
 import {buildGA4Event} from '../src/ga4.mjs';
 const valid={targetUrl:'https://www.example.org/',authorized:true,verificationToken:'tg_1234567890abcdefgh',sessions:4,concurrency:2,
@@ -41,4 +41,17 @@ test('GA4 payload remains distinctly synthetic and avoids fake acquisition event
  assert.equal(event.events[0].params.tg_synthetic,1);
  assert.equal(event.events[0].params.tg_utm_source,'qa_team');
  assert.equal(toSyntheticUrl(valid.targetUrl,p).includes('utm_source'),false);
+});
+
+test('rejects unsafe initial targets and inherited profile names',()=>{
+ assert.throws(()=>normalizePlan({...valid,targetUrl:'https://www.example.org/checkout'}),/Unsafe/);
+ assert.throws(()=>normalizePlan({...valid,countries:['constructor']}),/country/);
+ assert.throws(()=>normalizePlan({...valid,devices:['__proto__']}),/device/);
+});
+test('public evidence omits URL query values, fragments and verification token',()=>{
+ const url='https://www.example.org/about?token=secret#private';
+ assert.equal(evidenceUrl(url),'https://www.example.org/about');
+ const p=publicPlan(normalizePlan({...valid,targetUrl:url}));
+ assert.equal(p.targetUrl,'https://www.example.org/about');
+ assert.equal(p.verificationToken,'[redacted]');
 });

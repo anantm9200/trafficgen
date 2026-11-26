@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {detectGoogleTags} from '../src/ga4-detect.mjs';
+import {submitGA4} from '../src/ga4.mjs';
 
 test('detects GA4 measurement IDs from script src, preloads and HTML bootstrap data',()=>{
  const html='<link rel="preload" href="/gtag.js?id=G-PRELOAD1234">'+
@@ -25,4 +26,19 @@ test('website verification code preserves verified status and GA4 on recheck fai
  assert.match(source,/if\(!previouslyVerified\)\{site.status='pending';site.verifiedAt=null;\}/);
  assert.match(source,/hasPreviousIds&&!hasNewIds/);
  assert.match(source,/site\.ga4LastError=/);
+});
+
+test('normal GA4 collection fails closed even with matching credentials',async()=>{
+ const plan={analytics:{enabled:true,measurementId:'G-TEST12345'}};
+ const result=await submitGA4(plan,{},{measurementId:'G-TEST12345',apiSecret:'test-only',fetchImpl:async()=>{throw Error('network must not be called')}});
+ assert.deepEqual(result,{sent:false,reason:'qa_property_isolation_required'});
+});
+test('GA4 debug validation still uses only the validation endpoint',async()=>{
+ const plan={runId:'test-run',browser:'chromium',analytics:{enabled:true,measurementId:'G-TEST12345'}};
+ const result=await submitGA4(plan,{},{debug:true,measurementId:'G-TEST12345',apiSecret:'test-only',fetchImpl:async(url,options)=>{
+  assert.equal(new URL(url).pathname,'/debug/mp/collect');
+  assert.equal(JSON.parse(options.body).events[0].params.tg_synthetic,1);
+  return {ok:true,status:200,json:async()=>({validationMessages:[]})};
+ }});
+ assert.equal(result.sent,true);
 });

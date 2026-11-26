@@ -42,15 +42,16 @@ const text=(v,f,max=100)=>{if(typeof v!=='string'||v.length>max||/[<>\r\n]/.test
 export function normalizePlan(input){
  if(!input||typeof input!=='object'||Array.isArray(input))throw error('JSON object required');
  const target=parseTarget(input.targetUrl);
+ if(!safePath(target.href,target.origin))throw error('Unsafe test target path');
  if(input.authorized!==true)throw error('authorized:true is required. You must own or have permission for the target.');
  const verificationToken=text(input.verificationToken,'verificationToken',120);
  const verificationMethod=input.verificationMethod??'dns_txt';
  if(!['dns_txt','http_file'].includes(verificationMethod))throw error('Invalid website ownership verification method');
  if(!/^tg_[A-Za-z0-9_-]{16,100}$/.test(verificationToken))throw error('verificationToken must look like tg_ followed by at least 16 letters or digits');
  const countries=input.countries??['US'];
- if(!Array.isArray(countries)||countries.length<1||countries.length>8||new Set(countries).size!==countries.length||countries.some(c=>!COUNTRIES[c]))throw error('Select 1–8 unique supported country codes');
+ if(!Array.isArray(countries)||countries.length<1||countries.length>8||new Set(countries).size!==countries.length||countries.some(c=>typeof c!=='string'||!Object.hasOwn(COUNTRIES,c)))throw error('Select 1–8 unique supported country codes');
  const devices=input.devices??['desktop','iphone'];
- if(!Array.isArray(devices)||devices.length<1||devices.length>5||new Set(devices).size!==devices.length||devices.some(d=>!DEVICES[d]))throw error('Invalid device profiles');
+ if(!Array.isArray(devices)||devices.length<1||devices.length>5||new Set(devices).size!==devices.length||devices.some(d=>typeof d!=='string'||!Object.hasOwn(DEVICES,d)))throw error('Invalid device profiles');
  const browser=input.browser??'chromium';
  if(!['chromium','firefox','webkit'].includes(browser))throw error('Invalid browser engine');
  const sessions=integer(input.sessions??6,'sessions',1,25);
@@ -81,7 +82,9 @@ export function normalizePlan(input){
   createdAt:new Date().toISOString()
  };
 }
-export function publicPlan(p){const {verificationToken,...rest}=p;return {...rest,verificationToken:'[redacted]'};}
+// Query strings and fragments may contain identifiers or access tokens; never persist them in public evidence.
+export function evidenceUrl(raw){try{const u=new URL(raw);return (u.origin+u.pathname).slice(0,500);}catch{return '[invalid URL]';}}
+export function publicPlan(p){const {verificationToken,...rest}=p;return {...rest,targetUrl:evidenceUrl(p.targetUrl),verificationToken:'[redacted]'};}
 export function toSyntheticUrl(raw,plan){
  const url=new URL(raw);
  url.searchParams.set('visitorlab_test','1');
