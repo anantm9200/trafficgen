@@ -27,4 +27,7 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - run: node --test tests/browser.test.mjs tests/dashboard-browser.test.mjs tests/visual-typography.test.mjs
+      - name: Run Chromium DOM and dashboard journeys
+        run: |
+          export TG_BROWSER_EXECUTABLE="$(node --input-type=module -e "import {chromium} from 'playwright';console.log(chromium.executablePath())")"
+          node --test tests/chromium-dom-integration.test.mjs tests/browser.test.mjs tests/dashboard-browser.test.mjs tests/visual-typography.test.mjs

@@ -1,25 +1,24 @@
 import { randomUUID } from 'node:crypto';
-
-export const COUNTRIES = Object.freeze({
-  US:{name:'United States',locale:'en-US',timezoneId:'America/New_York',geolocation:{latitude:40.7128,longitude:-74.0060}},
-  IN:{name:'India',locale:'en-IN',timezoneId:'Asia/Kolkata',geolocation:{latitude:19.0760,longitude:72.8777}},
-  AE:{name:'United Arab Emirates',locale:'en-AE',timezoneId:'Asia/Dubai',geolocation:{latitude:25.2048,longitude:55.2708}},
-  DE:{name:'Germany',locale:'de-DE',timezoneId:'Europe/Berlin',geolocation:{latitude:52.52,longitude:13.405}},
-  GB:{name:'United Kingdom',locale:'en-GB',timezoneId:'Europe/London',geolocation:{latitude:51.5072,longitude:-0.1276}},
-  FR:{name:'France',locale:'fr-FR',timezoneId:'Europe/Paris',geolocation:{latitude:48.8566,longitude:2.3522}},
-  SG:{name:'Singapore',locale:'en-SG',timezoneId:'Asia/Singapore',geolocation:{latitude:1.3521,longitude:103.8198}},
-  AU:{name:'Australia',locale:'en-AU',timezoneId:'Australia/Sydney',geolocation:{latitude:-33.8688,longitude:151.2093}},
-  CA:{name:'Canada',locale:'en-CA',timezoneId:'America/Toronto',geolocation:{latitude:43.6532,longitude:-79.3832}},
-  ZA:{name:'South Africa',locale:'en-ZA',timezoneId:'Africa/Johannesburg',geolocation:{latitude:-26.2041,longitude:28.0473}},
-  NA:{name:'Namibia',locale:'en-NA',timezoneId:'Africa/Windhoek',geolocation:{latitude:-22.5609,longitude:17.0658}},
-  TZ:{name:'Tanzania',locale:'en-TZ',timezoneId:'Africa/Dar_es_Salaam',geolocation:{latitude:-6.7924,longitude:39.2083}}
+export const COUNTRIES=Object.freeze({
+ US:{name:'United States',locale:'en-US',timezoneId:'America/New_York',geolocation:{latitude:40.7128,longitude:-74.006}},
+ IN:{name:'India',locale:'en-IN',timezoneId:'Asia/Kolkata',geolocation:{latitude:19.076,longitude:72.8777}},
+ AE:{name:'United Arab Emirates',locale:'en-AE',timezoneId:'Asia/Dubai',geolocation:{latitude:25.2048,longitude:55.2708}},
+ DE:{name:'Germany',locale:'de-DE',timezoneId:'Europe/Berlin',geolocation:{latitude:52.52,longitude:13.405}},
+ GB:{name:'United Kingdom',locale:'en-GB',timezoneId:'Europe/London',geolocation:{latitude:51.5072,longitude:-0.1276}},
+ FR:{name:'France',locale:'fr-FR',timezoneId:'Europe/Paris',geolocation:{latitude:48.8566,longitude:2.3522}},
+ SG:{name:'Singapore',locale:'en-SG',timezoneId:'Asia/Singapore',geolocation:{latitude:1.3521,longitude:103.8198}},
+ AU:{name:'Australia',locale:'en-AU',timezoneId:'Australia/Sydney',geolocation:{latitude:-33.8688,longitude:151.2093}},
+ CA:{name:'Canada',locale:'en-CA',timezoneId:'America/Toronto',geolocation:{latitude:43.6532,longitude:-79.3832}},
+ ZA:{name:'South Africa',locale:'en-ZA',timezoneId:'Africa/Johannesburg',geolocation:{latitude:-26.2041,longitude:28.0473}},
+ NA:{name:'Namibia',locale:'en-NA',timezoneId:'Africa/Windhoek',geolocation:{latitude:-22.5609,longitude:17.0658}},
+ TZ:{name:'Tanzania',locale:'en-TZ',timezoneId:'Africa/Dar_es_Salaam',geolocation:{latitude:-6.7924,longitude:39.2083}}
 });
 export const DEVICES=Object.freeze({
-  desktop:{name:'Desktop',preset:'Desktop Chrome',class:'desktop'},
-  iphone:{name:'iPhone',preset:'iPhone 13',class:'mobile'},
-  android:{name:'Android',preset:'Galaxy S9+',class:'mobile'},
-  ipad:{name:'iPad',preset:'iPad Pro 11',class:'tablet'},
-  tablet:{name:'Android tablet',preset:'Galaxy Tab S4',class:'tablet'}
+ desktop:{name:'Desktop',preset:'Desktop Chrome',class:'desktop'},
+ iphone:{name:'iPhone',preset:'iPhone 13',class:'mobile'},
+ android:{name:'Android',preset:'Galaxy S9+',class:'mobile'},
+ ipad:{name:'iPad',preset:'iPad Pro 11',class:'tablet'},
+ tablet:{name:'Android tablet',preset:'Galaxy Tab S4',class:'tablet'}
 });
 export const UTM_KEYS=['utm_source','utm_medium','utm_campaign','utm_id','utm_term','utm_content','utm_source_platform','utm_creative_format','utm_marketing_tactic'];
 const DISALLOWED=/^(?:localhost|.+\.localhost|.+\.local|.+\.internal|.+\.test|.+\.invalid|.+\.example)$/i;
@@ -27,7 +26,7 @@ const DANGEROUS=/(?:^|\/|[-_])(delete|logout|remove|unsubscribe|cancel|pay|purch
 export function error(message,status=400){const e=new Error(message);e.status=status;return e;}
 export function parseTarget(raw){
  if(typeof raw!=='string'||raw.length>2048)throw error('targetUrl must be a public HTTPS URL');
- let u;try{u=new URL(raw);}catch{throw error('Invalid targetUrl');}
+ let u;try{u=new URL(raw)}catch{throw error('Invalid targetUrl')}
  if(u.protocol!=='https:'||u.port||u.username||u.password||u.hostname.length>253||!u.hostname.includes('.')||DISALLOWED.test(u.hostname)||/^\d/.test(u.hostname)||u.hostname.includes(':'))throw error('Only public HTTPS DNS hostnames on port 443 are supported');
  if(u.hash)u.hash='';return u;
 }
@@ -62,30 +61,17 @@ export function normalizePlan(input){
  if(typeof analytics!=='object'||analytics===null||Array.isArray(analytics))throw error('analytics must be object');
  const measurementId=analytics.measurementId===undefined?'':text(analytics.measurementId,'measurementId',32);
  if(measurementId&&!/^G-[A-Z0-9]{5,20}$/.test(measurementId))throw error('GA4 measurementId must look like G-XXXXXXXX');
- const utm={};
- for(const k of UTM_KEYS){const v=analytics.utm?.[k];if(v!==undefined&&v!=='')utm[k]=text(v,k,80);}
- return {
-  schemaVersion:1,runId:(typeof input.runId==='string'&&/^[a-f0-9-]{36}$/.test(input.runId))?input.runId:randomUUID(),
+ if(input.runId!==undefined && (typeof input.runId!=='string'||!(/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i).test(input.runId)))throw error('runId must be a canonical UUID');
+ const utm={};for(const k of UTM_KEYS){const v=analytics.utm?.[k];if(v!==undefined&&v!=='')utm[k]=text(v,k,80);}
+ return {schemaVersion:1,runId:input.runId??randomUUID(),
   name:text(input.name??'Authorized browser test','name',80),
   targetUrl:target.toString(),authorized:true,verificationToken,verificationMethod,
   sessions,concurrency,intervalSeconds,dwellSeconds,maxPages,countries,devices,browser,
-  interactions:{
-   scroll:input.interactions?.scroll!==false,
-   hover:input.interactions?.hover!==false,
-   navigate:input.interactions?.navigate!==false,
-   checkImages:input.interactions?.checkImages!==false
-  },
-  analytics:{enabled:analytics.enabled===true,measurementId,utm},
-  synthetic:true,
-  countryOriginMode:'emulated-browser-locale-not-source-IP',
-  createdAt:new Date().toISOString()
- };
+  interactions:{scroll:input.interactions?.scroll!==false,hover:input.interactions?.hover!==false,
+   navigate:input.interactions?.navigate!==false,checkImages:input.interactions?.checkImages!==false},
+  analytics:{enabled:analytics.enabled===true,measurementId,utm},synthetic:true,
+  countryOriginMode:'emulated-browser-locale-not-source-IP',createdAt:new Date().toISOString()};
 }
 export function publicPlan(p){const {verificationToken,...rest}=p;return {...rest,verificationToken:'[redacted]'};}
-export function toSyntheticUrl(raw,plan){
- const url=new URL(raw);
- url.searchParams.set('visitorlab_test','1');
- // Never add UTM fields to site URLs: the site's own GA tag may mistake them for customer acquisition.
- return url.toString();
-}
-export function msSummary(values){if(!values.length)return{p50:null,p95:null};const a=[...values].sort((x,y)=>x-y);return{p50:a[Math.ceil(a.length*.5)-1],p95:a[Math.ceil(a.length*.95)-1]};}
+export function toSyntheticUrl(raw,plan){const url=new URL(raw);url.searchParams.set('visitorlab_test','1');return url.toString();}
+export function msSummary(values){if(!values.length)return {p50:null,p95:null};const a=[...values].sort((x,y)=>x-y);return {p50:a[Math.ceil(a.length*.5)-1],p95:a[Math.ceil(a.length*.95)-1]};}

@@ -45,21 +45,21 @@ function renderRuns(){const raw=state.runs;
  $('#metric-runs').textContent=raw?raw.length:'—';
  const completed=raw?.filter(r=>['success','failure','cancelled'].includes(r.conclusion))||[];
  $('#metric-rate').textContent=completed.length?Math.round(completed.filter(r=>r.conclusion==='success').length/completed.length*100)+'%':'—';
- $('#runs-count').textContent=raw?raw.length+' real runs':'Requires authenticated GitHub API';
- const content=raw?.length?'<div class="record-list">'+raw.map(rowRun).join('')+'</div>':emptyMarkup(raw?'No workflow executions found.':'Connect your API key to retrieve actual GitHub workflow history.');
+ $('#runs-count').textContent=raw?raw.length+' real runs':'Requires authenticated DGX queue';
+ const content=raw?.length?'<div class="record-list">'+raw.map(rowRun).join('')+'</div>':emptyMarkup(raw?'No workflow executions found.':'Connect your API key to retrieve actual DGX worker jobs.');
  $('#run-list').innerHTML=content;
  $('#overview-runs').innerHTML=raw?.length?'<div class="record-list">'+raw.slice(0,4).map(rowRun).join('')+'</div>':emptyMarkup(raw?'No runs executed yet.':'No real run data connected yet.');
  const chart=$('#activity-chart');
- if(!raw?.length){chart.innerHTML='<div class="chart-empty"><div class="empty-icon">⌁</div><strong>No fabricated data here</strong><span>Live GitHub workflow results will appear as soon as your first authorized test runs.</span></div>';return;}
+ if(!raw?.length){chart.innerHTML='<div class="chart-empty"><div class="empty-icon">⌁</div><strong>No fabricated data here</strong><span>Verified DGX execution results appear after an authorized browser QA run.</span></div>';return;}
  const last=[...raw].reverse().slice(-12),max=1;
  chart.innerHTML=last.map(r=>{const [klass]=displayStatus(r.conclusion||r.status);return '<div title="'+encode((r.conclusion||r.status)+' • '+time(r.createdAt))+'" class="chart-bar '+(klass==='failure'?'failed':klass==='pending'?'pending':'')+'" style="height:'+(r.conclusion==='success'?64:r.conclusion==='failure'?43:28)+'%" data-label="'+encode(new Date(r.createdAt).toLocaleDateString([],{month:'short',day:'numeric'}))+'"></div>';}).join('');
 }
-function rowRun(r){const [cls,label]=displayStatus(r.conclusion||r.status);const running=['queued','running'].includes(r.status);return '<div class="record-row"><span class="record-icon">◷</span><div class="record-desc"><b>DGX job '+encode(r.id.slice(0,8))+'</b><small>'+encode(time(r.createdAt))+' · '+encode(r.error||'Authorized synthetic browser test')+'</small></div><span class="status '+cls+'">'+encode(label)+'</span>'+(running?'<button class="link-button" data-cancel-dgx="'+encode(r.id)+'">Cancel</button>':'')+(r.report?'<button class="link-button" data-report-dgx="'+encode(r.id)+'">Report ↓</button>':'')+'</div>';}
+function rowRun(r){const [cls,label]=displayStatus(r.conclusion||r.status);const running=['queued','running'].includes(r.status);return '<div class="record-row"><span class="record-icon">◷</span><div class="record-desc"><b>DGX job '+encode(r.id.slice(0,8))+'</b><small>'+encode(time(r.createdAt))+' · '+encode(r.error||'Authorized synthetic browser test')+'</small></div><span class="status '+cls+'">'+encode(label)+'</span>'+(running?'<button class="link-button" data-cancel-dgx="'+encode(r.id)+'">Cancel</button>':'')+(r.reportAvailable?'<button class="link-button" data-report-dgx="'+encode(r.id)+'">Report ↓</button>':'')+'</div>';}
 function emptyMarkup(msg){return '<div class="list-empty"><b>Nothing to show yet.</b><small>'+encode(msg)+'</small></div>';}
 async function refreshRuns(){if(!state.apiKey){state.runs=null;renderRuns();return;}const btn=$('#refresh-runs');btn.disabled=true;try{
  const res=await http('/api/dgx-jobs',{auth:true});
- state.runs=(res.jobs||[]).map(j=>({id:j.id,status:j.status,conclusion:j.status==='completed'?'success':j.status==='failed'?'failure':j.status==='cancelled'?'cancelled':null,createdAt:j.createdAt,attempt:1,execution:'dgx',report:j.report,error:j.error}));
- notify('DGX job statuses refreshed.');
+ state.runs=(res.jobs||[]).map(j=>({id:j.id,status:j.status,conclusion:j.status==='completed'?'success':j.status==='failed'?'failure':j.status==='cancelled'?'cancelled':null,createdAt:j.createdAt,attempt:1,execution:'dgx',reportAvailable:Boolean(j.reportAvailable||j.report),error:j.error}));
+ // Avoid a toast every time background polling completes
  }catch(e){state.runs=null;notify('Unable to load DGX jobs: '+e.message);}finally{btn.disabled=false;renderRuns();}}
 function renderCampaigns(){const list=state.store.campaigns;$('#campaign-list-count').textContent=list.length+' campaign'+(list.length===1?'':'s');$('#campaign-list').innerHTML=list.length?'<div class="record-list">'+[...list].reverse().map(c=>'<div class="record-row"><span class="record-icon">◫</span><div class="record-desc"><b>'+encode(c.name)+'</b><small>'+encode(c.targetUrl)+' · '+encode(c.sessions)+' sessions · '+encode(time(c.updatedAt))+'</small></div><button class="link-button" data-edit="'+encode(c.id)+'">Edit ↗</button><button class="link-button" data-export-campaign="'+encode(c.id)+'">Export ↓</button><button class="link-button delete-button" data-delete-campaign="'+encode(c.id)+'">Remove</button></div>').join('')+'</div>':emptyMarkup('Save your first campaign in the New Test builder.');}
 
@@ -359,7 +359,7 @@ function wireEvents(){document.addEventListener('click',e=>{
   }catch(e){output.textContent='Live service check failed: '+e.message;output.className='inline-result bad';}
   finally{button.disabled=false;button.textContent='Check live service ↻';}
  };
- $('#connect-api').onclick=async()=>{const key=$('#settings-token').value.trim();if(!key||key.length<24){$('#api-connection-result').textContent='Enter the 24+ character API key from Vercel.';return;}state.apiKey=key;sessionStorage.setItem(TOKEN_KEY,key);try{const ready=await http('/api/auth-check',{auth:true});$('#api-connection-result').textContent='API authorized. DGX dispatch uses the authenticated job API; check Run monitor for queue connectivity.';$('#api-connection-result').className='inline-result ok';state.authenticated=true;renderIntegrations();if(ready.integrations.githubWorkflow)await refreshRuns();else{state.runs=null;renderRuns();}}catch(e){sessionStorage.removeItem(TOKEN_KEY);state.apiKey='';state.authenticated=false;renderIntegrations();$('#api-connection-result').textContent='API authorization failed: '+e.message;$('#api-connection-result').className='inline-result bad';}notify('Workspace connection checked.');};
+ $('#connect-api').onclick=async()=>{const key=$('#settings-token').value.trim();if(!key||key.length<24){$('#api-connection-result').textContent='Enter the 24+ character API key from Vercel.';return;}state.apiKey=key;sessionStorage.setItem(TOKEN_KEY,key);try{const ready=await http('/api/auth-check',{auth:true});$('#api-connection-result').textContent='API authorized. DGX dispatch uses the authenticated job API; check Run monitor for queue connectivity.';$('#api-connection-result').className='inline-result ok';state.authenticated=true;renderIntegrations();await refreshRuns();}catch(e){sessionStorage.removeItem(TOKEN_KEY);state.apiKey='';state.authenticated=false;renderIntegrations();$('#api-connection-result').textContent='API authorization failed: '+e.message;$('#api-connection-result').className='inline-result bad';}notify('Workspace connection checked.');};
  $('#disconnect-api').onclick=()=>{state.apiKey='';state.authenticated=false;sessionStorage.removeItem(TOKEN_KEY);$('#settings-token').value='';state.runs=null;renderRuns();$('#api-connection-result').textContent='Key cleared from this tab.';notify('Disconnected.');};
  $('#toggle-token').onclick=()=>{const input=$('#settings-token');input.type=input.type==='password'?'text':'password';$('#toggle-token').textContent=input.type==='password'?'Show':'Hide';};
  $('#backup-workspace').onclick=()=>download('trafficgen-workspace-backup.json',state.store);
@@ -397,8 +397,10 @@ document.addEventListener('click',async e=>{
  const cancel=e.target.closest('[data-cancel-dgx]');
  if(cancel){if(!confirm('Cancel this DGX test?'))return;try{await http('/api/dgx-job?id='+encodeURIComponent(cancel.dataset.cancelDgx),{method:'POST',auth:true});await refreshRuns();}catch(err){notify('Cancellation failed: '+err.message);}return;}
  const report=e.target.closest('[data-report-dgx]');
- if(report){const job=state.runs?.find(r=>r.id===report.dataset.reportDgx);if(!job?.report)return;
- const blob=new Blob([JSON.stringify(job.report,null,2)],{type:'application/json'});
+ if(report){const job=state.runs?.find(r=>r.id===report.dataset.reportDgx);if(!job?.reportAvailable)return;
+ let detail;try{detail=await http('/api/dgx-job?id='+encodeURIComponent(job.id),{auth:true});}catch(err){notify('Report unavailable: '+err.message);return;}
+ if(!detail.job?.report){notify('This report is not available yet.');return;}
+ const blob=new Blob([JSON.stringify(detail.job.report,null,2)],{type:'application/json'});
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='trafficgen-'+job.id+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
 });

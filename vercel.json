@@ -46,5 +46,17 @@
         }
       ]
     }
+  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/legacy/:path*",
+      "destination": "/:path*"
+    }
   ]
 }
