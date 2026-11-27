@@ -30,7 +30,7 @@ test('operator creates a draft in Chromium and reads it back from SQLite after r
   await page.locator('#api-key').fill(apiKey);
   await page.locator('#connect').click();
   await page.waitForFunction(() => document.querySelector('#connection').textContent === 'API connected');
-  await page.locator('a[href="#create"]').click();
+  await page.getByRole('link', {name:'Campaign builder', exact:true}).click();
   await page.locator('#create-form [name="name"]').fill('Staging navigation');
   await page.locator('#create-form [name="siteUrl"]').fill('https://example.org');
   await page.locator('#create-form button[type="submit"]').click();
