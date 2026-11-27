@@ -30,4 +30,4 @@ jobs:
       - name: Run Chromium DOM and dashboard journeys
         run: |
           export TG_BROWSER_EXECUTABLE="$(node --input-type=module -e "import {chromium} from 'playwright';console.log(chromium.executablePath())")"
-          node --test tests/chromium-dom-integration.test.mjs tests/browser.test.mjs tests/dashboard-browser.test.mjs tests/visual-typography.test.mjs
+          node --test tests/chromium-dom-integration.test.mjs tests/campaign-browser.test.mjs tests/browser.test.mjs tests/dashboard-browser.test.mjs tests/visual-typography.test.mjs

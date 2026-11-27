@@ -28,6 +28,7 @@ export function buildGA4Event(plan,session,{debug=false}={}){
 }
 export async function submitGA4(plan,session,{measurementId=process.env.GA4_MEASUREMENT_ID,apiSecret=process.env.GA4_API_SECRET,debug=false,fetchImpl=fetch}={}){
  if(!plan.analytics?.enabled)return {sent:false,reason:'disabled'};
+ if(!debug)return {sent:false,reason:'qa_property_isolation_required'};
  if(!measurementId||!apiSecret)return {sent:false,reason:'missing_GA4_secrets'};
  if(plan.analytics.measurementId!==measurementId)throw error('Configured measurementId does not match the authorized GA4_MEASUREMENT_ID secret',403);
  if(!/^G-[A-Z0-9]{5,20}$/.test(measurementId))throw error('Invalid configured measurement ID');
@@ -36,7 +37,7 @@ export async function submitGA4(plan,session,{measurementId=process.env.GA4_MEAS
  endpoint.searchParams.set('api_secret',apiSecret);
  const payload=buildGA4Event(plan,session,{debug});
  const response=await fetchImpl(endpoint.toString(),{
-  method:'POST',
+  method:'POST',redirect:'error',
   headers:{'content-type':'application/json','user-agent':'VisitorLab-SyntheticTesting/1.0'},
   body:JSON.stringify(payload),signal:AbortSignal.timeout(7000)
  });

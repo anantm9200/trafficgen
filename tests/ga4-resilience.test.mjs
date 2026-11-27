@@ -26,3 +26,13 @@ test('website verification code preserves verified status and GA4 on recheck fai
  assert.match(source,/hasPreviousIds&&!hasNewIds/);
  assert.match(source,/site\.ga4LastError=/);
 });
+
+test('legacy normal collection cannot send even with matching credentials',async()=>{
+ const {submitGA4}=await import('../src/ga4.mjs');
+ let attempts=0;
+ const result=await submitGA4({analytics:{enabled:true,measurementId:'G-EXAMPLE123'}},{},{
+  measurementId:'G-EXAMPLE123',apiSecret:'fixture-only',fetchImpl:()=>{attempts++;throw Error('unexpected transport')}
+ });
+ assert.equal(result.sent,false);
+ assert.equal(attempts,0);
+});

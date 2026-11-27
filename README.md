@@ -6,7 +6,7 @@
 
 **Reliability:** The project now has an hourly GitHub Actions production check at `.github/workflows/hourly-health.yml` plus mandatory JavaScript syntax gates and a real Playwright Chromium dashboard regression test. Hourly checks monitor both production hostnames and fail for broken JavaScript or API responses. GitHub scheduling can be delayed; these automated checks do not automatically write new features.
 
-**Google integrations:** Synthetic website visits can send explicitly named GA4 Measurement Protocol test events when the owned `GA4_MEASUREMENT_ID` and `GA4_API_SECRET` are configured. Search Console does not ingest ordinary test visits or manufacture organic Google Search impressions/clicks; use verified Search Console properties for legitimate indexing, sitemap and search-performance checks.
+**Google integrations:** The campaign service can submit labeled synthetic events to a verified QA property. Search Console does not ingest ordinary test visits or manufacture organic Google Search impressions/clicks; use verified Search Console properties for legitimate indexing, sitemap and search-performance checks.
 
 
 The frontend is available at **https://trafficgen.vercel.app/**, with Overview, New Test, Campaigns, Run Monitor, Analytics, Websites, Device Lab, and Integrations. The dashboard is the verified responsive preview promoted by GitHub integration. The existing `/api/*` endpoints remain in place.
@@ -60,15 +60,9 @@ GitHub Actions JSON report artifact (14-day retention)
 - Synthetic GA4 custom event `visitorlab_synthetic_visit` using Measurement Protocol, with `tg_synthetic=1`, `traffic_type=internal`, run metadata, country/device profile and nine `tg_utm_*` values. **These are test metadata, not authentic Google acquisition/referral attribution.**
 - No residential proxy rotation, anti-bot evasion, advertising clicks or disguised engagement.
 
-## Falling Shares — TrafficGen testing stream
+## Isolated analytics execution
 
-For `https://www.fallingshares.com/`, the owner-designated **TrafficGen testing** destination is the **existing** GA4 Measurement ID `G-E3DFWFZ3YT` (the website currently loads GTM `GTM-TDGW33GH`). Selecting the verified Falling Shares domain in TrafficGen now pre-fills that Measurement ID; this is an owner-provided mapping, not an auto-detection claim.
-
-- The existing GTM container and GA4 stream are unchanged. Label the property as testing in GA4 Admin if desired; the code cannot rename it or stop real visitors also being counted there. Historical GA4 data remains intact.
-- TrafficGen's server-side synthetic events remain labelled `visitorlab_synthetic_visit`, `tg_synthetic=1` and `traffic_type=internal`; they are not authentic customer acquisition.
-- Browser-generated `page_view` and `session_start` from GTM can also appear in this same stream. Treat the entire stream as testing/mixed data, not clean organic traffic.
-- A server-side test event requires `GA4_MEASUREMENT_ID=G-E3DFWFZ3YT` plus the **matching private** `GA4_API_SECRET` in the execution worker's secret settings. The ID alone is insufficient. Never commit the secret.
-- Before genuine acquisition measurement is needed, create a separate production property and route real visitors to it. Two unconditional tags would duplicate tracking rather than separate it.
+The Falling Shares measurement ID is historical site metadata. Browser runs use staging sites and block known analytics collection routes. For synthetic event delivery, use Campaign operations with a dedicated QA property. The campaign service checks the stream against the configured numeric QA property before sending, and records reporting evidence separately from transport acceptance. The original GA4 debug endpoint validates event structure only.
 
 ## Vercel deployment
 
